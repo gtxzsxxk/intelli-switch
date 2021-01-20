@@ -1,11 +1,18 @@
 # IntelliSw 智能WiFi开关
 
-+ [x] Web平台更新
-+ [ ] STM32平台更新
+- [x] Web平台更新
+- [ ] STM32平台更新（可能用IOT终端来代替这一说法）
 
 ## Web平台
 
-部署Web平台需要下载Font-Awesome，并添加至Web目录下的static目录。
+部署Web平台需要下载Font-Awesome，并添加至Web目录下的static目录。  
+Web平台采用Django框架构建，建立了3个模型，分别是
+
++ ServerInfo，储存服务器信息。
+
++ SampleData，储存IOT终端上报的数据。IOT终端通过ESP8266连接到互联网，为了保持与服务器的长连接，访问与本Web平台共同部署在一起的数据上报接口（iot-uploader.py）。数据上报接口通过GET请求Web平台内定义的/command命令执行接口来更新数据。或者Web平台在View.py内调用socket访问数据上报接口，调用内部已经与IOT终端建立连接的socket发送设备更改或时间同步命令。
+
++ DeviceControl，设备控制，储存自定义设备的状态。
 
 ## STM32平台
 
