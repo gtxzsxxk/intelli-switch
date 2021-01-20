@@ -1,7 +1,7 @@
 # IntelliSw 智能WiFi开关
 
-[x] Web平台更新
-[] STM32平台更新
++ [x] Web平台更新
++ [ ] STM32平台更新
 
 ## Web平台
 
