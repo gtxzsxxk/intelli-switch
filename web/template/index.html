@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>IntelliSw - 智能开关</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=0">
+    <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/css/bootstrap.min.css">
+    <script src="https://cdn.staticfile.org/jquery/2.1.1/jquery.min.js"></script>
+    <script src="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
+
+    {% load static %}
+    <link href="{% static 'font-awesome-4.7.0/css/font-awesome.min.css' %}" rel="stylesheet">
+
+    <style>
+        * {
+            font-weight: lighter;
+            font-family: "微软雅黑Light";
+        }
+
+        .navbar-inverse .navbar-brand {
+            color: lightblue;
+        }
+
+        .header {
+            left: 50%;
+            right: 50%;
+            margin: 0 auto;
+            text-align: center;
+
+            font-weight: bold;
+            color: darkslateblue;
+            font-size: 30px;
+        }
+
+        .datWindow {
+            border-radius: 15px;
+            border-style: solid;
+            border-color: #DEB887;
+            border-width: 1px;
+            background-color: lightpink;
+            height: 110px;
+            padding: 8px;
+            width: 100%;
+            margin-top: 10px;
+            color: #696969;
+        }
+
+        .datWindow:hover {
+            border-radius: 15px;
+            border-style: solid;
+            border-color: #cba69d;
+            border-width: 1px;
+            background-color: lightpink;
+            height: 110px;
+            padding: 8px;
+            width: 100%;
+            margin-top: 10px;
+            color: #696969;
+        }
+
+        hr {
+            margin-top: 10px;
+            margin-bottom: 10px;
+            border-color: #8FBC8F;
+        }
+
+        .numSpan {
+            font-size: 32px;
+            font-weight: bold;
+            height: 43px;
+            line-height: 43px;
+        }
+
+        .numSpan-sm {
+            font-size: 24px;
+            font-weight: bold;
+            height: 43px;
+            line-height: 43px;
+        }
+
+        .statusSpan {
+            font-size: 28px;
+            font-weight: bold;
+            color: #8FBC8F;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        .statusSpanWarn {
+            font-size: 28px;
+            font-weight: bold;
+            color: maroon;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        body {
+            /*background-color: #D8BFD8;*/
+            background-color: #e9c6d2;
+        }
+
+        .myformcontrol {
+            margin-top: 6px;
+            width: 75%;
+            float: left;
+            background-color: #DEB887;
+            color: #696969;
+            font-family: 'Courier New', Courier, monospace;
+            font-weight: bold;
+        }
+
+        a {
+            cursor: pointer;
+        }
+
+        small {
+            font-family: 'Courier New', Courier, monospace;
+            font-style: italic;
+        }
+
+        .test-5::-webkit-scrollbar {
+            /*滚动条整体样式*/
+            width: 10px;
+            /*高宽分别对应横竖滚动条的尺寸*/
+            height: 1px;
+        }
+
+        /*进度条抄自https://www.jianshu.com/p/c2addb233acd，万分感谢此仁兄*/
+        .test-5::-webkit-scrollbar-thumb {
+            /*滚动条里面小方块*/
+            border-radius: 10px;
+            background-color: rgb(10, 73, 98);
+            background-image: -webkit-linear-gradient(45deg,
+                    rgba(255, 255, 255, 0.2) 25%,
+                    transparent 25%,
+                    transparent 50%,
+                    rgba(255, 255, 255, 0.2) 50%,
+                    rgba(255, 255, 255, 0.2) 75%,
+                    transparent 75%,
+                    transparent);
+        }
+
+        .test-5::-webkit-scrollbar-track {
+            /*滚动条里面轨道*/
+            box-shadow: inset 0 0 5px rgba(0, 0, 0, 0.2);
+            background: rgb(35, 193, 255);
+            border-radius: 10px;
+        }
+
+        .controlBox {
+            height: 50px;
+            margin-left: 10px;
+            margin-right: 10px;
+            margin-bottom: 5px;
+            border: 1px solid#8FBC8F;
+            border-radius: 5px;
+            padding: 8px;
+            padding-left: 16px;
+            font-size: 18px;
+        }
+    </style>
+</head>
+
+<body class="test test-5">
+    <nav class="navbar navbar-inverse navbar-fixed-top" role="navigation">
+        <div class="container-fluid">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle" data-toggle="collapse"
+                    data-target="#example-navbar-collapse">
+                    <span class="sr-only">切换导航</span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="navbar-brand" href="#" style="font-weight: bold;">IntelliSw - 智能开关</a>
+            </div>
+            <div class="collapse navbar-collapse" id="example-navbar-collapse">
+                <ul class="nav navbar-nav navbar-right">
+                    <li class="active" id='li1'><a onclick="navStick('li1','runningstatus')">运行状态</a></li>
+                    <li id='li2'><a onclick="navStick('li2','controlboard')">控制面板</a></li>
+                    <li id='li3'><a onclick="navStick('li3','logBoard')">日志记录</a></li>
+                    <li id='li4'><a href="/admin">后台配置</a></li>
+                    <li id='li5'><a href="#" onclick="exitPAGE()">退出</a></li>
+                    <li id='li6'><a href="#" onclick="RefreshHTML()">刷新本页</a></li>
+                    <li id='li7'><a href="#" onclick="debug()">网页调试</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container scrollbar" style="margin-top: 60px;overflow-y:visible;">
+        <div id='runningstatus' class="row">
+            <div class="col-xs-6 col-md-3">
+                <div class="datWindow">
+                    <span>室内温度</span>
+                    <hr />
+                    <div class="pull-left"><i class="fa fa-thermometer-half fa-3x"></i></div>
+                    <div class="pull-right"><span class="numSpan">{{temperature}}<small>°C</small></span></div>
+                </div>
+            </div>
+            <div class="col-xs-6 col-md-3">
+                <div class="datWindow">
+                    <span>相对湿度</span>
+                    <hr />
+                    <div class="pull-left"><i class="fa fa-tint fa-3x"></i></div>
+                    <div class="pull-right"><span class="numSpan">{{humidity}}<small>%</small></span></div>
+                </div>
+            </div>
+            <div class="col-xs-6 col-md-3">
+                <div class="datWindow">
+                    <span>室内气压</span>
+                    <hr />
+                    <div class="pull-left"><i class="fa fa-tachometer fa-2x"
+                            style="height: 43px;line-height: 43px;"></i></div>
+                    <div class="pull-right"><span class="numSpan-sm">{{atmospressure}}<small>hPa</small></span></div>
+                </div>
+            </div>
+            <div class="col-xs-6 col-md-3">
+                <div class="datWindow">
+                    <span>光照强度</span>
+                    <hr />
+                    <div class="pull-left"><i class="fa fa-lightbulb-o fa-3x"></i></div>
+                    <div class="pull-right"><span class="numSpan-sm">{{illuminance}}<small>lx</small></span></div>
+                </div>
+            </div>
+            <div class="col-xs-12 col-md-6">
+                <div class="datWindow">
+                    <span>服务器终端</span>
+                    <hr />
+                    <div class="pull-left"><i class="fa fa-terminal fa-3x"></i></div>
+                    <div class="pull-right" style="width: 80%;display: inline;">
+                        <input id='commandbox' type="text" class="form-control myformcontrol"
+                            placeholder="Enter your command here." />
+                        <input type="button" class="btn btn-danger"
+                            style="margin-top: 6px;margin-left:5px;width: 20%;float:right" value="EXE"
+                            onclick="webTerminal()" />
+                    </div>
+                </div>
+            </div>
+            <div class="col-xs-12 col-md-6">
+                <div class="datWindow">
+                    <span>物联网终端状态</span>
+                    <hr />
+                    <div class="pull-left"><i class="fa fa-server fa-3x"></i></div>
+                    <div class="pull-right"><span class="statusSpan{{towarn}}">{{serverStatus}}</span></div>
+                </div>
+            </div>
+        </div>
+        <div id='controlboard' class="row">
+            <div class="col-md-12 col-xs-12">
+                <div class="datWindow" style="height: auto;">
+                    <span>控制面板&nbsp;-&nbsp;{{authstatus}}</span>
+                    <hr />
+                    {% autoescape off %}
+                    {{devicecontrols}}
+                    {% endautoescape %}
+                </div>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12">
+                <div id='serverinfodiv' class="datWindow" style="height:auto;overflow:hidden">
+                    <span>调试输出</span>
+                    <hr />
+                    {% autoescape off %}
+                    {{serverinfo}}
+                    {% endautoescape %}
+                </div>
+            </div>
+        </div>
+
+        <div id='logBoard' class="row">
+            <div class="col-md-12 col-xs-12">
+                <div class="datWindow" style="height: auto;margin-bottom: 5px;">
+                    <span>日志记录</span>
+                    <hr />
+                    <span>Not Available</span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        window.onload = function () {
+            if (isContains(navigator.userAgent, "app/"))
+                document.getElementById('li4').remove();
+            debuginfo();
+            //window.setInterval(OnTimeEvent,5000);
+        };
+
+        function OnTimeEvent() {
+            RefreshHTML();
+        }
+
+        function navStick(liid, target) {
+            document.getElementById('li1').setAttribute('class', '');
+            document.getElementById('li2').setAttribute('class', '');
+            document.getElementById('li3').setAttribute('class', '');
+            document.getElementById('li4').setAttribute('class', '');
+            document.getElementById(liid).setAttribute('class', 'active');
+            $('html,body').animate({ scrollTop: $('#' + target).offset().top - 70 }, 1000);
+
+        }
+
+        function Talert(msg) {
+            alert(msg);
+            if(IsClient())
+                window.web.ToastAlert(msg);
+        }
+
+        function isContains(str, substr) {
+            return str.indexOf(substr) >= 0;
+        }
+
+        function debug() {
+            //debuginfo
+            Talert(navigator.userAgent);
+        }
+
+        function IsClient() {
+            return isContains(navigator.userAgent, "app/");
+        }
+
+        function debuginfo() {
+            var toshowinfo = "当前平台：";
+            if (isContains(navigator.userAgent, "app/"))
+                toshowinfo += "安卓客户端";
+            else if (isContains(navigator.userAgent.toLowerCase(), "android"))
+                toshowinfo += "安卓";
+            else if (isContains(navigator.userAgent.toLowerCase(), "windows"))
+                toshowinfo += "Windows";
+            else if (isContains(navigator.userAgent.toLowerCase(), "linux"))
+                toshowinfo += "Linux";
+            else
+                toshowinfo += "Invalid Platform"
+            toshowinfo += "；";
+            $('#serverinfodiv').html($('#serverinfodiv').html() + "；" + toshowinfo);
+        }
+
+        function webTerminal() {
+            if ($('#commandbox').val() == "") {
+                Talert('请输入有效命令');
+                return;
+            }
+            $.ajax({
+                url: 'command/',
+                type: 'GET',
+                data: { 'c': $('#commandbox').val() },
+                success: function (result) {
+                    Talert(result);
+                    RefreshHTML();
+                }
+            });
+
+            
+
+        }
+
+        function RefreshHTML() {
+            if (IsClient())
+                window.web.RefreshPage();
+            else
+                window.location.reload();
+        }
+
+        function exitPAGE() {
+            if (IsClient())
+                window.web.ExitProgram();
+            else {
+                window.opener = null;
+                window.open('', '_self');
+                window.close();
+            }
+        }
+
+        function device_ctl(deviceId, cmd) {
+            $.ajax({
+                url: 'command/',
+                type: 'GET',
+                data: { 'c': 'devedit ' + deviceId.toString() + ' ' + cmd },
+                success: function (result) {
+                    if (isContains(result, 'errs')) {
+                        Talert(result.split('\r\n')[1]);
+                    }
+                    /*else {
+                        $('#devbtn' + deviceId.toString()).val(result.split('\r\n')[1]);
+                        if (result.split('\r\n')[1] == 'On') {
+                            $('#devbtn' + deviceId.toString()).removeClass('btn-primary');
+                            $('#devbtn' + deviceId.toString()).addClass('btn-danger');
+                        } else {
+                            $('#devbtn' + deviceId.toString()).addClass('btn-primary');
+                            $('#devbtn' + deviceId.toString()).removeClass('btn-danger');
+                        }
+
+                    }*/
+                    RefreshHTML();
+                    //$('#devbtn'+deviceId.toString()).val(result);
+                }
+            });
+        }
+
+    </script>
+
+
+</body>
+
+</html>
