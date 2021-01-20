@@ -17,3 +17,11 @@ Web平台采用Django框架构建，建立了3个模型，分别是
 ## STM32平台
 
 俺不知道，俺一时半会还没整完。
+#### Instruction to STM32 code
++ This Code Is Running On STM32F401CCU6.You can buy it on Taobao.
++ This is the basic STM32CUBEMX project files.Attention.I have deleted all innecessary driver files such as timer driver and usart driver.But I keep all the module drivers for the
+followings.
+    - ESP8266(The Wifi module)
+    - BMP280(Temperature and Atmosphere Pressure Sensor)
+    - DHT11(Temperature and Humidity Sensor) 
+    - BF1750(Digital Lightness Sensor)
