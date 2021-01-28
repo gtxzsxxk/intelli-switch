@@ -214,6 +214,6 @@ void DHT11_Output(void)
 	//¥Ú”°–≈œ¢
 	uint8_t buffer[14];
 	memset(buffer,0,sizeof(buffer));
-	sprintf(buffer,"HUMI:%hhu per",DHT11_HUMIDITY);
+	sprintf((char*)buffer,"HUMI:%hhu per",DHT11_HUMIDITY);
 	l_print(buffer,7);
 }

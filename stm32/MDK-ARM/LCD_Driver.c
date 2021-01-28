@@ -42,10 +42,12 @@ void Lcd_WriteReg(uint8_t Index,uint8_t Data)
 
 void Lcd_Reset(void)
 {
-	HAL_GPIO_WritePin(LCD_RST_GPIO_Port,LCD_RST_Pin,GPIO_PIN_RESET);
-	HAL_Delay(100);
 	HAL_GPIO_WritePin(LCD_RST_GPIO_Port,LCD_RST_Pin,GPIO_PIN_SET);
-	HAL_Delay(50);
+	HAL_Delay(1);
+	HAL_GPIO_WritePin(LCD_RST_GPIO_Port,LCD_RST_Pin,GPIO_PIN_RESET);
+	HAL_Delay(1);
+	HAL_GPIO_WritePin(LCD_RST_GPIO_Port,LCD_RST_Pin,GPIO_PIN_SET);
+	HAL_Delay(120);
 }
 
 //LCD Init For 1.44Inch LCD Panel with ST7735R.

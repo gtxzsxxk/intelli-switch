@@ -83,8 +83,16 @@ void delay_us(uint32_t i);
 #define IOT_OUTPUT_3_GPIO_Port GPIOB
 #define IOT_OUTPUT_4_Pin GPIO_PIN_15
 #define IOT_OUTPUT_4_GPIO_Port GPIOB
+#define IOT_OUTPUT_5_Pin GPIO_PIN_8
+#define IOT_OUTPUT_5_GPIO_Port GPIOA
+#define IOT_OUTPUT_6_Pin GPIO_PIN_11
+#define IOT_OUTPUT_6_GPIO_Port GPIOA
+#define IOT_OUTPUT_7_Pin GPIO_PIN_12
+#define IOT_OUTPUT_7_GPIO_Port GPIOA
 #define DHT11_PORT_Pin GPIO_PIN_4
 #define DHT11_PORT_GPIO_Port GPIOB
+#define ESP8266_RST_Pin GPIO_PIN_5
+#define ESP8266_RST_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
