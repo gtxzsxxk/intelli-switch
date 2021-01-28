@@ -52,7 +52,6 @@ SPI_HandleTypeDef hspi1;
 TIM_HandleTypeDef htim4;
 
 UART_HandleTypeDef huart1;
-UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 
@@ -63,7 +62,6 @@ void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USART1_UART_Init(void);
-static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_RTC_Init(void);
 static void MX_TIM4_Init(void);
@@ -153,15 +151,25 @@ void ESP_SendData(uint8_t* dat)
 	HAL_UART_Transmit(&huart1,dat,strlen((const char*)dat),1000);
 }
 
+void ESP_Reset(void)
+{
+	HAL_GPIO_WritePin(ESP8266_RST_GPIO_Port,ESP8266_RST_Pin,0);
+	HAL_Delay(5);
+	HAL_GPIO_WritePin(ESP8266_RST_GPIO_Port,ESP8266_RST_Pin,1);
+}
+
 void ESP_Init(void)
 {
 	//AT+CWMODE=1
+	HAL_Delay(500);
+	ESP_Reset();
+	HAL_Delay(2500);
 	g_print("NETWORK INIT");
 	ESP_SendAT("AT+CWMODE=1");
 	HAL_Delay(5);
 	ESP_SendAT("AT+SLEEP=2");
 	HAL_Delay(5);
-	ESP_SendAT("AT+CWJAP=\"Your Own SSID\",\"Your Own Password\"");
+	ESP_SendAT("AT+CWJAP=\"801\",\"bao32801\"");
 	g_print("WIFICONNECTING");
 	HAL_Delay(12000);
 	ESP_SendAT("AT+CIFSR");
@@ -171,7 +179,7 @@ void ESP_Init(void)
 	HAL_Delay(100);
 	ESP_SendAT("AT+CIPMODE=1");
 	HAL_Delay(100);
-	ESP_SendAT("AT+CIPSTART=\"TCP\",\"Your Own Server\",10010");
+	ESP_SendAT("AT+CIPSTART=\"TCP\",\"129.204.224.55\",10010");
 	g_print("Connecting to Data Uploader");
 	HAL_Delay(5000);
 	ESP_SendAT("AT+CIPSEND");
@@ -183,6 +191,9 @@ void ESP_Init(void)
 uint8_t rtc_time[14]="Wed 15:58:35";
 uint8_t week[3]="Wed";
 
+RTC_TimeTypeDef server_Time = {0};//服务器更新的时间
+RTC_TimeTypeDef now_Time = {0};//当前时间
+
 void RTC_Update(void)
 {
 	//012345 len=6
@@ -193,16 +204,31 @@ void RTC_Update(void)
 	memcpy(temp_buff,rev_buff+3,strlen((const char*)rev_buff)-3);
 	
 	sscanf((char*)temp_buff,"%s %hhu:%hhu:%hhu",week,&hour,&minute,&second);
-	RTC_TimeTypeDef sTime = {0};
-	sTime.Hours = hour;
-  sTime.Minutes = minute;
-  sTime.Seconds = second;
-  sTime.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
-  sTime.StoreOperation = RTC_STOREOPERATION_RESET;
-  if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BIN) != HAL_OK)
+	server_Time.Hours = hour;
+  server_Time.Minutes = minute;
+  server_Time.Seconds = second;
+  server_Time.DayLightSaving = RTC_DAYLIGHTSAVING_NONE;
+  server_Time.StoreOperation = RTC_STOREOPERATION_RESET;
+  if (HAL_RTC_SetTime(&hrtc, &server_Time, RTC_FORMAT_BIN) != HAL_OK)
   {
     Error_Handler();
   }
+}
+
+
+//ESP8266看门狗，若从服务器收到的时间更新信息120秒内没有更新，则判定ESP8266宕机，即复位ESP8266
+//ESP8266看门狗程序触发于Display_Time
+void ESP8266_WatchDog(void)
+{
+	short deltaTime=0;
+	deltaTime=(now_Time.Hours-server_Time.Hours)*60*60+(now_Time.Minutes-server_Time.Minutes)*60
+		+(now_Time.Seconds-server_Time.Seconds);
+	if(deltaTime>120)
+	{
+		ESP_Reset();
+		ESP_Init();
+		HomeScreen();
+	}
 }
 
 void Display_Time(void)
@@ -210,16 +236,15 @@ void Display_Time(void)
 	//3
 	uint8_t timebuff[14];
 	uint8_t hour,minute,second;
-	RTC_TimeTypeDef sTime = {0};
 	RTC_DateTypeDef sDate={0};
-	
-	HAL_RTC_GetTime(&hrtc,&sTime,RTC_FORMAT_BIN);
+	HAL_RTC_GetTime(&hrtc,&now_Time,RTC_FORMAT_BIN);
 	HAL_RTC_GetDate(&hrtc,&sDate,RTC_FORMAT_BIN);
-	hour=sTime.Hours;minute=sTime.Minutes;second=sTime.Seconds;
+	hour=now_Time.Hours;minute=now_Time.Minutes;second=now_Time.Seconds;
 	
 	memset(timebuff,0,sizeof(timebuff));
 	sprintf((char*)timebuff,"%s %02hhu:%02hhu:%02hhu",week,hour,minute,second);
 	l_print(timebuff,3);
+	ESP8266_WatchDog();
 }
 
 void Data_Receive(void)
@@ -261,11 +286,50 @@ void Data_Receive(void)
 			else
 				HAL_GPIO_WritePin(IOT_OUTPUT_4_GPIO_Port,IOT_OUTPUT_4_Pin,1);
 		}
+		else if(deviceID==5)
+		{
+			if(rev_buff[5]-48==0)
+				HAL_GPIO_WritePin(IOT_OUTPUT_5_GPIO_Port,IOT_OUTPUT_5_Pin,0);
+			else
+				HAL_GPIO_WritePin(IOT_OUTPUT_5_GPIO_Port,IOT_OUTPUT_5_Pin,1);
+		}
+		else if(deviceID==6)
+		{
+			if(rev_buff[5]-48==0)
+				HAL_GPIO_WritePin(IOT_OUTPUT_6_GPIO_Port,IOT_OUTPUT_6_Pin,0);
+			else
+				HAL_GPIO_WritePin(IOT_OUTPUT_6_GPIO_Port,IOT_OUTPUT_6_Pin,1);
+		}
+		else if(deviceID==7)
+		{
+			if(rev_buff[5]-48==0)
+				HAL_GPIO_WritePin(IOT_OUTPUT_7_GPIO_Port,IOT_OUTPUT_7_Pin,0);
+			else
+				HAL_GPIO_WritePin(IOT_OUTPUT_7_GPIO_Port,IOT_OUTPUT_7_Pin,1);
+		}
 		l_print(rev_buff,8);
 	}
 	else if(rev_buff[1]=='D'&&rev_buff[2]=='T')
 	{
 		RTC_Update();
+	}
+	else if(rev_buff[1]=='E'&&rev_buff[2]=='R'&&rev_buff[3]=='S')
+	{
+		//$ERS#
+		ESP_Reset();
+		ESP_Init();
+		HomeScreen();
+	}
+	else if(rev_buff[1]=='F'&&rev_buff[2]=='R'&&rev_buff[3]=='S')
+	{
+		//$FRS# 复位
+		HAL_NVIC_SystemReset();
+	}
+	else if(rev_buff[1]=='F'&&rev_buff[2]=='R'&&rev_buff[3]=='S')
+	{
+		//$SRS# 屏幕初始化
+		Lcd_Init();
+		HomeScreen();
 	}
 }
 
@@ -302,13 +366,12 @@ int main(void)
   MX_GPIO_Init();
   MX_SPI1_Init();
   MX_USART1_UART_Init();
-  MX_USART2_UART_Init();
   MX_I2C1_Init();
   MX_RTC_Init();
   MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
 	HAL_UART_Receive_IT(&huart1,&rev_char,1);
-	HAL_Delay(400);
+	HAL_Delay(800);
 	Lcd_Init();
 	ESP_Init();
 	HomeScreen();
@@ -564,7 +627,7 @@ static void MX_SPI1_Init(void)
   hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
   hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
   hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
   hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
   hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
   hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
@@ -658,39 +721,6 @@ static void MX_USART1_UART_Init(void)
 }
 
 /**
-  * @brief USART2 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_USART2_UART_Init(void)
-{
-
-  /* USER CODE BEGIN USART2_Init 0 */
-
-  /* USER CODE END USART2_Init 0 */
-
-  /* USER CODE BEGIN USART2_Init 1 */
-
-  /* USER CODE END USART2_Init 1 */
-  huart2.Instance = USART2;
-  huart2.Init.BaudRate = 115200;
-  huart2.Init.WordLength = UART_WORDLENGTH_8B;
-  huart2.Init.StopBits = UART_STOPBITS_1;
-  huart2.Init.Parity = UART_PARITY_NONE;
-  huart2.Init.Mode = UART_MODE_TX_RX;
-  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
-  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
-  if (HAL_UART_Init(&huart2) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN USART2_Init 2 */
-
-  /* USER CODE END USART2_Init 2 */
-
-}
-
-/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -710,7 +740,13 @@ static void MX_GPIO_Init(void)
 
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(GPIOB, SPI1_CS_Pin|LCD_RST_Pin|LCD_DC_Pin|IOT_OUTPUT_1_Pin 
-                          |IOT_OUTPUT_2_Pin|IOT_OUTPUT_3_Pin|IOT_OUTPUT_4_Pin|DHT11_PORT_Pin, GPIO_PIN_RESET);
+                          |IOT_OUTPUT_3_Pin|IOT_OUTPUT_4_Pin|DHT11_PORT_Pin, GPIO_PIN_RESET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOB, IOT_OUTPUT_2_Pin|ESP8266_RST_Pin, GPIO_PIN_SET);
+
+  /*Configure GPIO pin Output Level */
+  HAL_GPIO_WritePin(GPIOA, IOT_OUTPUT_5_Pin|IOT_OUTPUT_6_Pin|IOT_OUTPUT_7_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin : LED_TEST_Pin */
   GPIO_InitStruct.Pin = LED_TEST_Pin;
@@ -720,13 +756,20 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_Init(LED_TEST_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : SPI1_CS_Pin LCD_RST_Pin LCD_DC_Pin IOT_OUTPUT_1_Pin 
-                           IOT_OUTPUT_2_Pin IOT_OUTPUT_3_Pin IOT_OUTPUT_4_Pin */
+                           IOT_OUTPUT_2_Pin IOT_OUTPUT_3_Pin IOT_OUTPUT_4_Pin ESP8266_RST_Pin */
   GPIO_InitStruct.Pin = SPI1_CS_Pin|LCD_RST_Pin|LCD_DC_Pin|IOT_OUTPUT_1_Pin 
-                          |IOT_OUTPUT_2_Pin|IOT_OUTPUT_3_Pin|IOT_OUTPUT_4_Pin;
+                          |IOT_OUTPUT_2_Pin|IOT_OUTPUT_3_Pin|IOT_OUTPUT_4_Pin|ESP8266_RST_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : IOT_OUTPUT_5_Pin IOT_OUTPUT_6_Pin IOT_OUTPUT_7_Pin */
+  GPIO_InitStruct.Pin = IOT_OUTPUT_5_Pin|IOT_OUTPUT_6_Pin|IOT_OUTPUT_7_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /*Configure GPIO pin : DHT11_PORT_Pin */
   GPIO_InitStruct.Pin = DHT11_PORT_Pin;
