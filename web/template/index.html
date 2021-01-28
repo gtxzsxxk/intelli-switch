@@ -8,6 +8,9 @@
     <link rel="stylesheet" href="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/css/bootstrap.min.css">
     <script src="https://cdn.staticfile.org/jquery/2.1.1/jquery.min.js"></script>
     <script src="https://cdn.staticfile.org/twitter-bootstrap/3.3.7/js/bootstrap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.min.js"
+        integrity="sha512-d9xgZrVZpmmQlfonhQUvTR7lMPtO7NkZMkA0ABN3PHCbKA5nqylQ/yWlFAyY6hYgdF1Qh6nYiuADWwKB4C2WSw=="
+        crossorigin="anonymous"></script>
 
     {% load static %}
     <link href="{% static 'font-awesome-4.7.0/css/font-awesome.min.css' %}" rel="stylesheet">
@@ -16,6 +19,21 @@
         * {
             font-weight: lighter;
             font-family: "微软雅黑Light";
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -khtml-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
+
+        input,
+        textarea {
+            -webkit-user-select: auto;
+            /*webkit浏览器*/
+            margin: 0px;
+            padding: 0px;
+            outline: none;
         }
 
         .navbar-inverse .navbar-brand {
@@ -108,6 +126,29 @@
             font-weight: bold;
         }
 
+        .myformcontrol1 {
+            display: inline-block;
+            padding: 6px 12px;
+            margin-bottom: 0;
+            font-size: 14px;
+            font-weight: 400;
+            line-height: 1.42857143;
+            text-align: center;
+            white-space: nowrap;
+            vertical-align: middle;
+            -ms-touch-action: manipulation;
+            touch-action: manipulation;
+            cursor: pointer;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            background-image: none;
+            border: 1px solid #cba69d;
+            border-radius: 4px;
+            background-color: transparent;
+        }
+
         a {
             cursor: pointer;
         }
@@ -177,11 +218,11 @@
                 <ul class="nav navbar-nav navbar-right">
                     <li class="active" id='li1'><a onclick="navStick('li1','runningstatus')">运行状态</a></li>
                     <li id='li2'><a onclick="navStick('li2','controlboard')">控制面板</a></li>
-                    <li id='li3'><a onclick="navStick('li3','logBoard')">日志记录</a></li>
+                    <li id='li3'><a onclick="navStick('li3','logBoard')">数据监控</a></li>
                     <li id='li4'><a href="/admin">后台配置</a></li>
-                    <li id='li5'><a href="#" onclick="exitPAGE()">退出</a></li>
-                    <li id='li6'><a href="#" onclick="RefreshHTML()">刷新本页</a></li>
-                    <li id='li7'><a href="#" onclick="debug()">网页调试</a></li>
+                    <li id='li5'><a href="#" onclick="RefreshHTML()">刷新本页</a></li>
+                    <li id='li6'><a href="#" onclick="exitPAGE()">退出</a></li>
+
                 </ul>
             </div>
         </div>
@@ -230,7 +271,7 @@
                     <div class="pull-right" style="width: 80%;display: inline;">
                         <input id='commandbox' type="text" class="form-control myformcontrol"
                             placeholder="Enter your command here." />
-                        <input type="button" class="btn btn-danger"
+                        <input id='termin-exec' type="button" class="btn btn-danger"
                             style="margin-top: 6px;margin-left:5px;width: 20%;float:right" value="EXE"
                             onclick="webTerminal()" />
                     </div>
@@ -270,10 +311,31 @@
 
         <div id='logBoard' class="row">
             <div class="col-md-12 col-xs-12">
-                <div class="datWindow" style="height: auto;margin-bottom: 5px;">
-                    <span>日志记录</span>
+                <div class="datWindow" style="height: auto;margin-bottom: 15px;">
+                    <div style="display: block;line-height: 34px;height: auto;overflow: hidden;">
+                        <span style="float:left;">数据监控</span>
+                        <input id='date_picker' type="date" class="myformcontrol1"
+                            style="float: right;margin-right: 10px;" onchange="ChangeDate()" />
+                    </div>
+
                     <hr />
-                    <span>Not Available</span>
+                    <div style="display: block;overflow: hidden;">
+                        <div class="col-md-4 col-xs-12">
+                            <div>
+                                <canvas id="tempChart" height="200"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-md-4 col-xs-12">
+                            <div>
+                                <canvas id="pressChart" height="200"></canvas>
+                            </div>
+                        </div>
+                        <div class="col-md-4 col-xs-12">
+                            <div>
+                                <canvas id="illuChart" height="200"></canvas>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -285,8 +347,190 @@
             if (isContains(navigator.userAgent, "app/"))
                 document.getElementById('li4').remove();
             debuginfo();
-            //window.setInterval(OnTimeEvent,5000);
+            var time = new Date();
+            var day = ("0" + time.getDate()).slice(-2);
+            var month = ("0" + (time.getMonth() + 1)).slice(-2);
+            var today = time.getFullYear() + "-" + (month) + "-" + (day);
+
+
+            var day7before = new Date();//7天前
+            day7before.setTime(day7before.getTime() - 7 * 24 * 60 * 60 * 1000);
+            var day7 = ("0" + day7before.getDate()).slice(-2);
+            var month7 = ("0" + (day7before.getMonth() + 1)).slice(-2);
+            var today7 = time.getFullYear() + "-" + (month7) + "-" + (day7);
+
+
+            $('#date_picker').val(today);
+            $('#date_picker').attr('max', today);
+            $('#date_picker').attr('min', today7);
+            GetTempData();
+            GetPressData();
+            GetIlluData();
         };
+        var isToday = true;
+        function ChangeDate() {
+            var time = new Date();
+            var day = ("0" + time.getDate()).slice(-2);
+            var month = ("0" + (time.getMonth() + 1)).slice(-2);
+            var today = time.getFullYear() + "-" + (month) + "-" + (day);
+            if ($('#date_picker').val() == today)
+                isToday = true;
+            else
+                isToday = false;
+            GetTempData();
+            GetPressData();
+            GetIlluData();
+        }
+        var temp_ctx = null;
+        var tempChart = null;
+
+        function GetTempData() {
+            $.ajax({
+                url: 'temp/',
+                type: 'GET',
+                data: { 'from': $('#date_picker').val() },
+                success: function (result) {
+                    var mydata = JSON.parse(result);
+                    //这里如果遇到0度，会直接识别为没有数据，我找不到更好的解决方法
+                    var min_value = 99999; var max_value = -99999;
+                    for (var i = 0; i < mydata.length; i++) {
+                        mydata[i] = parseFloat(mydata[i].toFixed(2));
+                        if (mydata[i] > max_value)
+                            max_value = mydata[i];
+                        if (mydata[i] < min_value)
+                            min_value = mydata[i];
+
+                        var now = new Date();
+                        if (i > now.getHours() && isToday)
+                            mydata[i] = null;
+                    }
+                    temp_ctx = document.getElementById("tempChart").getContext('2d');
+                    tempChart = new Chart(temp_ctx, {
+                        type: 'line',
+                        data: {
+                            labels: ["0时", "1时", "2时", "3时", "4时", "5时", "6时", "7时", "8时", "9时", "10时"
+                                , "11时", "12时", "13时", "14时", "15时", "16时", "17时", "18时", "19时", "20时", "21时", "22时", "23时"],
+                            datasets: [{
+                                label: '温度变化曲线',
+                                data: mydata,
+                                backgroundColor: [
+                                    'rgba(255, 99, 132, 0.2)'
+                                ],
+                                borderColor: [
+                                    'rgba(255,99,132,1)'
+                                ],
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            spanGaps: true,
+                            scales: {
+                                y: {
+                                    suggestedMin: min_value - 2,
+                                    suggestedMax: max_value + 2
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+        }
+
+        var press_ctx = null;
+        var pressChart = null;
+        function GetPressData() {
+            $.ajax({
+                url: 'press/',
+                type: 'GET',
+                data: { 'from': $('#date_picker').val() },
+                success: function (result) {
+                    var mydata = JSON.parse(result);
+                    for (var i = 0; i < mydata.length; i++) {
+                        mydata[i] = parseFloat(mydata[i].toFixed(2));
+                        var now = new Date();
+                        if (i > now.getHours() && isToday)
+                            mydata[i] = null;
+                    }
+                    press_ctx = document.getElementById("pressChart").getContext('2d');
+                    pressChart = new Chart(press_ctx, {
+                        type: 'line',
+                        data: {
+                            labels: ["0时", "1时", "2时", "3时", "4时", "5时", "6时", "7时", "8时", "9时", "10时"
+                                , "11时", "12时", "13时", "14时", "15时", "16时", "17时", "18时", "19时", "20时", "21时", "22时", "23时"],
+                            datasets: [{
+                                label: '气压变化曲线',
+                                data: mydata,
+                                backgroundColor: [
+                                    'rgba(255, 99, 132, 0.2)'
+                                ],
+                                borderColor: [
+                                    'rgba(255,99,132,1)'
+                                ],
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            spanGaps: true,
+                            scales: {
+                                y: {
+                                    suggestedMin: 950,
+                                    suggestedMax: 1060
+                                }
+                            }
+                        }
+                    });
+                }
+            });
+        }
+
+        var illu_ctx = null;
+        var illuChart = null;
+        function GetIlluData() {
+            $.ajax({
+                url: 'illu/',
+                type: 'GET',
+                data: { 'from': $('#date_picker').val() },
+                success: function (result) {
+                    var mydata = JSON.parse(result);
+                    for (var i = 0; i < mydata.length; i++) {
+                        //if (mydata[i] == 0)
+                        mydata[i] = parseFloat(mydata[i].toFixed(2));
+                        var now = new Date();
+                        if (i > now.getHours() && isToday)
+                            mydata[i] = null;
+                    }
+                    illu_ctx = document.getElementById("illuChart").getContext('2d');
+                    illuChart = new Chart(illu_ctx, {
+                        type: 'line',
+                        data: {
+                            labels: ["0时", "1时", "2时", "3时", "4时", "5时", "6时", "7时", "8时", "9时", "10时"
+                                , "11时", "12时", "13时", "14时", "15时", "16时", "17时", "18时", "19时", "20时", "21时", "22时", "23时"],
+                            datasets: [{
+                                label: '光照强度变化曲线',
+                                data: mydata,
+                                backgroundColor: [
+                                    'rgba(255, 99, 132, 0.2)'
+                                ],
+                                borderColor: [
+                                    'rgba(255,99,132,1)'
+                                ],
+                                borderWidth: 1
+                            }]
+                        },
+                        options: {
+                            spanGaps: true,
+                            scales: {
+                                yAxes: [{
+                                    ticks: {
+                                        beginAtZero: false
+                                    }
+                                }]
+                            }
+                        }
+                    });
+                }
+            });
+        }
 
         function OnTimeEvent() {
             RefreshHTML();
@@ -304,7 +548,7 @@
 
         function Talert(msg) {
             alert(msg);
-            if(IsClient())
+            if (IsClient())
                 window.web.ToastAlert(msg);
         }
 
@@ -338,8 +582,10 @@
         }
 
         function webTerminal() {
+            $("#termin-exec").attr({ "disabled": "disabled" });
             if ($('#commandbox').val() == "") {
                 Talert('请输入有效命令');
+                $("#termin-exec").attr({ "disabled": "" });
                 return;
             }
             $.ajax({
@@ -351,9 +597,7 @@
                     RefreshHTML();
                 }
             });
-
-            
-
+            $("#termin-exec").attr({ "disabled": "" });
         }
 
         function RefreshHTML() {
@@ -374,6 +618,7 @@
         }
 
         function device_ctl(deviceId, cmd) {
+            $("#devbtn" + deviceId.toString()).attr({ "disabled": "disabled" });
             $.ajax({
                 url: 'command/',
                 type: 'GET',
@@ -397,9 +642,11 @@
                     //$('#devbtn'+deviceId.toString()).val(result);
                 }
             });
+            $("#devbtn" + deviceId.toString()).attr({ "disabled": "" });
         }
 
     </script>
+    <!--Thanks to my cat-->
 
 
 </body>

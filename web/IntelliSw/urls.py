@@ -20,5 +20,10 @@ from WebView import views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('',views.IndexPage),
-    path('command/',views.commandExec)
+    path('command/',views.commandExec),
+    path('temp/',views.GetTemp),
+    path('press/',views.GetPress),
+    path('illu/',views.GetIllu),
+    path('iotgo/',views.iotGoOnline),
+    path('iotsync/',views.iotSync)
 ]

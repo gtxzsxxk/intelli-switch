@@ -779,7 +779,7 @@
                                                 服务器数据上报接口:</h3>
                                             <h1
                                                 style="Margin-top: 12px;Margin-bottom: 20px;font-style: normal;font-weight: normal;color: #3e4751;font-size: 22px;line-height: 31px;font-family: Ubuntu,sans-serif;text-align: center;">
-                                                IOT终端不在位警告</h1>
+                                                {{warning_title}}</h1>
                                         </div>
                                     </div>
 
@@ -799,9 +799,9 @@
                                             style="mso-line-height-rule: exactly;mso-text-raise: 11px;vertical-align: middle;">
                                             <h2
                                                 style="Margin-top: 0;Margin-bottom: 0;font-style: normal;font-weight: normal;color: #3e4751;font-size: 16px;line-height: 24px;font-family: Ubuntu,sans-serif;">
-                                                数据上报时间：{{time}}</h2>
+                                                错误上报时间：{{time}}</h2>
                                             <p style="Margin-top: 16px;Margin-bottom: 0;font-family: Ubuntu,sans-serif;">
-                                                等待了{{waittime}}s后，位于服务器的数据上报接口仍未收到来自IOT终端的心跳数据包。我们判定此终端已丢失连接。请立刻检查IOT终端，并恢复连接。</p>
+                                                {{message}}</p>
                                         </div>
                                     </div>
 

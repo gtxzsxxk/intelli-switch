@@ -6,26 +6,27 @@ import traceback
 import smtplib
 from email.mime.text import MIMEText
 from email.header import Header
+import requests
 
 time_out_setting:int=120
 listen_port:int=10010
 
-def SendMail():
+def SendMail(title:str,message:str):
     # 第三方 SMTP 服务
     #Thanks to runoob
     mail_host="smtp.qq.com"  #设置服务器
-    mail_user="2524395907@qq.com"    #用户名
-    mail_pass="ktzlliytwsgmdiaj"   #口令 
+    mail_user="Use Your Own@qq.com"    #用户名
+    mail_pass="Use Your Own"   #口令 
     
     
-    sender = '2524395907@qq.com'
-    receivers = ['2524395907@qq.com']  # 接收邮件，可设置为你的QQ邮箱或者其他邮箱
+    sender = 'Use Your Own@qq.com'
+    receivers = ['Use Your Own@qq.com']  # 接收邮件，可设置为你的QQ邮箱或者其他邮箱
 
     htmlfile=open('mail.html','r',encoding='utf-8')
     htmldata=htmlfile.read()
     htmlfile.close()
-    htmldata=htmldata.replace('{{waittime}}',str(time_out_setting)).replace('{{time}}',\
-        time.strftime("%d日 %H时%M分%S秒", time.localtime()))
+    htmldata=htmldata.replace('{{time}}',time.strftime("%d日 %H时%M分%S秒", time.localtime())).\
+        replace('{{message}}',message).replace('{{warning_title}}',title)
 
     mail_msg = htmldata
     message = MIMEText(mail_msg, 'html', 'utf-8')
@@ -45,7 +46,7 @@ def SendMail():
 
 
 def UploadToHttp(iotdata):
-    upload_sock=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
+    """upload_sock=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
     upload_sock.connect(('127.0.0.1',8000))
     tosend="GET /command/?c=iotrpt+%s+%s+%s+%s HTTP/1.1\r\nUser-Agent: app/iot-uploader\r\nConnection: close\r\nHost: 127.0.0.1:8000\r\n\r\n"%\
         (iotdata[0],iotdata[1],iotdata[2],iotdata[3])
@@ -60,6 +61,12 @@ def UploadToHttp(iotdata):
     len=dat_str.split('\r\n').__len__()
     totellback="$%s#"%dat_str.split('\r\n')[len-1].replace('saved.','')
     print("服务器返回：",totellback)
+    return totellback.encode('utf-8')"""
+    headers={"User-Agent":"app/iot-uploader","Connection":"close"}
+    kw={"c":"iotrpt %s %s %s %s"%(iotdata[0],iotdata[1],iotdata[2],iotdata[3])}
+    response=requests.get("http://127.0.0.1:8000/command/",headers=headers,params=kw)
+    totellback="$%s#"%(response.text.split('\r\n')[1].replace('saved.',''))
+    print("回传给IOT终端：",totellback)
     return totellback.encode('utf-8')
 
 iot_socket:socket.socket=None
@@ -67,6 +74,7 @@ iot_socket:socket.socket=None
 class Listening(threading.Thread):
     mysocket:socket.socket=None
     remote_addr=None
+    has_sync=False
     def __init__(self,sock,addr):
         threading.Thread.__init__(self)
         self.mysocket=sock
@@ -80,32 +88,36 @@ class Listening(threading.Thread):
                 recv_data=self.mysocket.recv(1024)
                 iotdata=recv_data.decode('utf-8')
                 if iotdata[0]=='$':
-                    if iotdata[1]=='c' and iotdata[2]=='h':
-                        print("%s 接收到本地服务器传来数据:%s"%(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),iotdata))
-                        if iot_socket!=None:
-                            print(iotdata)
-                            iot_socket.send(recv_data)
-                            print("已将本地服务器要求转发IOT")
-                        else:
-                            print("尚未获取到IOT_SOCKET")
-                        self.mysocket.close()
-                        return
+                    #$25.14:47:101443.33:83.3#
+                    print("%s 接收到IOT传来数据:%s"%(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),iotdata))
+                    iot_socket=self.mysocket
+                    iotdata=iotdata.replace('$','').replace('#','')
+                    datas=iotdata.split(':')
+                    datas[2]="%.2f"%(float(datas[2])/100)
+                    print("温度：%s，湿度：%s，大气压：%s，光照强度：%s"%(datas[0],datas[1],datas[2],datas[3]))
+                    #上报服务器
+                    totellback=UploadToHttp(datas)
+                    self.mysocket.send(totellback)
+                    time.sleep(1)
+                    if self.has_sync==False:
+                        requests.get('http://127.0.0.1:8000/iotsync/')
+                        self.has_sync=True
+                elif iotdata[0]=='^':
+                    print("%s 接收到本地服务器传来数据:%s"%(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),iotdata))
+                    iotdata=iotdata.replace('^','$')
+                    if iot_socket!=None:
+                        print(iotdata)
+                        iot_socket.send(iotdata.encode('utf-8'))
+                        print("已将本地服务器要求转发IOT")
                     else:
-                        #$25.14:47:101443.33:83.3#
-                        print("%s 接收到IOT传来数据:%s"%(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),iotdata))
-                        iot_socket=self.mysocket
-                        iotdata=iotdata.replace('$','').replace('#','')
-                        datas=iotdata.split(':')
-                        datas[2]="%.2f"%(float(datas[2])/100)
-                        print("温度：%s，湿度：%s，大气压：%s，光照强度：%s"%(datas[0],datas[1],datas[2],datas[3]))
-                        #上报服务器
-                        totellback=UploadToHttp(datas)
-                        self.mysocket.send(totellback)
+                        print("尚未获取到IOT_SOCKET")
+                    self.mysocket.close()
+                    return
             except Exception as e:
                 if str(e)=='timed out':
                     print("IOT终端超时，未及时上传数据，将断开连接并发送邮件上报。")
                     self.mysocket.close()
-                    SendMail()
+                    SendMail('IOT终端不在位警告','等待了%ds后，位于服务器的数据上报接口仍未收到来自IOT终端的心跳数据包。我们判定此终端已丢失连接。请立刻检查IOT终端，并恢复连接。'%time_out_setting)
                     iot_socket=None
                     return
                 else:
@@ -114,7 +126,8 @@ class Listening(threading.Thread):
                     self.mysocket.close()
                     if iot_socket is self.mysocket:
                         iot_socket=None
-                        print("释放IOT_SOCKET")
+                        print("IOT终端SOCKET释放，失去与IOT终端的连接。发送邮件上报事故。")
+                        SendMail('IOT终端丢失连接错误','IOT终端意外地丢失了与服务器建立的长连接。这并非程序所刻意设计或料想的。可能是ESP8266模块或STM32单片机问题。按照程序逻辑，检测到丢失连接后会触发看门狗立刻复位。请即刻检查IOT终端并完成维护工作。')
                     return
 
 
@@ -129,5 +142,7 @@ while(True):
     listener=Listening(client_socket,client_addr)
     listener.start()
     print(client_addr,"已接入服务。")
+    requests.get('http://127.0.0.1:8000/iotgo/')
+
 
 
