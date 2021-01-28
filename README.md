@@ -1,7 +1,8 @@
 # IntelliSw 智能WiFi开关
 
+- [x] Concept Video Uploaded:https://www.bilibili.com/video/BV14A411u7TP
 - [x] Web平台更新
-- [ ] STM32平台更新（可能用IOT终端来代替这一说法）
+- [x] STM32平台更新（可能用IOT终端 or MCU来代替这一说法）
 
 ## Web平台
 
