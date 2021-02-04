@@ -85,9 +85,9 @@ void DHT11_Init(void)
 void DHT11_Rst(void)
 {
     DHT11_IO_OUT(); 	//SET OUTPUT
-    HAL_GPIO_WritePin(DHT11_PORT_GPIO_Port,DHT11_PORT_Pin,0); 	//拉低DQ
+    HAL_GPIO_WritePin(DHT11_PORT_GPIO_Port,DHT11_PORT_Pin,GPIO_PIN_RESET); 	//拉低DQ
     HAL_Delay(20);    	//拉低至少18ms,(DHT22 500us)
-    HAL_GPIO_WritePin(DHT11_PORT_GPIO_Port,DHT11_PORT_Pin,1); 	//DQ=1
+    HAL_GPIO_WritePin(DHT11_PORT_GPIO_Port,DHT11_PORT_Pin,GPIO_PIN_SET); 	//DQ=1
     delay_us(30);     	//主机拉高20~40us
 }
 
@@ -212,8 +212,9 @@ void DHT11_Output(void)
 	DHT11_Init();
 	DHT11_Read_Data(&a,&DHT11_HUMIDITY);
 	//打印信息
-	uint8_t buffer[14];
+	char buffer[14];
 	memset(buffer,0,sizeof(buffer));
-	sprintf((char*)buffer,"HUMI:%hhu per",DHT11_HUMIDITY);
-	l_print(buffer,7);
+	sprintf(buffer,"HUMI:%hhu per",DHT11_HUMIDITY);
+	if(!AppMode)
+		l_print(buffer,5,Left);
 }

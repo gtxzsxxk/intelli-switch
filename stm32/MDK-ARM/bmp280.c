@@ -94,7 +94,7 @@ double t_fine=0;
 
 void bmp280_getTemperature()
 {
-	uint8_t buffer[14];
+	char buffer[14];
 	uint8_t xlsb=0,lsb=0,msb=0;
 	int32_t adc_T=0;
 	double var1=0,var2=0;
@@ -111,13 +111,14 @@ void bmp280_getTemperature()
 	bmp_280_temperature=(var1+var2)/5120.0;
 						//打印信息
 	memset(buffer,0,sizeof(buffer));
-	sprintf((char*)buffer,"TEMP:%.2f 'C ",bmp_280_temperature);
-	l_print(buffer,4);
+	sprintf(buffer,"TEMP:%.2f 'C ",bmp_280_temperature);
+	if(!AppMode)
+		l_print(buffer,2,Left);
 }
 
 void bmp280_getAtmosPressure()
 {
-	uint8_t buffer[14];
+	char buffer[14];
 	uint8_t msb=0,lsb=0,xlsb=0;
 	int32_t adc_P=0;
 	double var1, var2, pressure;
@@ -148,6 +149,7 @@ void bmp280_getAtmosPressure()
 	bmp_280_atmospressure=pressure;
 	//打印信息
 	memset(buffer,0,sizeof(buffer));
-	sprintf((char*)buffer,"QNH:%.2fhPa",bmp_280_atmospressure/100);
-	l_print(buffer,5);
+	sprintf(buffer,"QNH :%.2fhPa",bmp_280_atmospressure/100);
+	if(!AppMode)
+		l_print(buffer,3,Left);
 }

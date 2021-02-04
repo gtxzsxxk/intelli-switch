@@ -1,254 +1,283 @@
 #include "LCD_Driver.h"
-
-//向SPI总线传输一个8位数据
-void  SPI_WriteData(uint8_t Data)
+uint8_t g_line=0;
+uint8_t g_x=0;
+void LCD_WriteByte(uint8_t dc,uint8_t b)
 {
-	HAL_SPI_Transmit(&hspi1,&Data,1,10);
+	uint8_t i;
+	SCE_H;
+	SCE_L;
+	if(dc) DC_H;
+	else DC_L;
+	for(i=0;i<8;i++)
+	{
+		//10101010
+		SCLK_L;
+		if(b&0x80)
+		DIN_H;
+		else DIN_L;
+		SCLK_H;
+		b=b<<1;
+		//delay_us(50);
+	}
+	SCLK_L;
+	DIN_L;
+	SCE_H;
+	//delay_us(100);
 }
 
-//向液晶屏写一个8位指令
-void Lcd_WriteIndex(uint8_t Index)
+void LCD_Init(void)
 {
-   //SPI 写命令时序开始
-	HAL_GPIO_WritePin(SPI1_CS_GPIO_Port,SPI1_CS_Pin,GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(LCD_DC_GPIO_Port,LCD_DC_Pin,GPIO_PIN_RESET);
-	 SPI_WriteData(Index);
-   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port,SPI1_CS_Pin,GPIO_PIN_SET);
+	SCE_H;
+	RST_L;
+	HAL_Delay(10);
+	RST_H;
+	LCD_WriteByte(CMD,0x21);
+  LCD_WriteByte(CMD,0xc8);
+  LCD_WriteByte(CMD,0x06);
+  LCD_WriteByte(CMD,0x13);
+  LCD_WriteByte(CMD,0x20);
+  LCD_Clean();
+  LCD_WriteByte(CMD,0x0c);
+	SCE_L;
 }
 
-//向液晶屏写一个8位数据
-void Lcd_WriteData(uint8_t Data)
+void LCD_SetXY(uint8_t x,uint8_t y)
 {
-   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port,SPI1_CS_Pin,GPIO_PIN_RESET);
-	HAL_GPIO_WritePin(LCD_DC_GPIO_Port,LCD_DC_Pin,GPIO_PIN_SET);
-	 SPI_WriteData(Data);
-   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port,SPI1_CS_Pin,GPIO_PIN_SET);
-}
-//向液晶屏写一个16位数据
-void LCD_WriteData_16Bit(uint16_t Data)
-{
-   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port,SPI1_CS_Pin,GPIO_PIN_RESET);
-   HAL_GPIO_WritePin(LCD_DC_GPIO_Port,LCD_DC_Pin,GPIO_PIN_SET);
-	 SPI_WriteData(Data>>8); 	//写入高8位数据
-	 SPI_WriteData(Data); 			//写入低8位数据
-   HAL_GPIO_WritePin(SPI1_CS_GPIO_Port,SPI1_CS_Pin,GPIO_PIN_SET); 
+	g_x=x;g_line=y;
+	x=83-x;
+	y=5-y;
+	x+=0x80;
+	y+=0x40;
+	
+	LCD_WriteByte(CMD,x);
+	LCD_WriteByte(CMD,y);
 }
 
-void Lcd_WriteReg(uint8_t Index,uint8_t Data)
+void LCD_Clean(void)
 {
-	Lcd_WriteIndex(Index);
-  Lcd_WriteData(Data);
+	uint16_t i=503;
+	for(i=0;i<503;i++)
+	{
+		LCD_WriteByte(DAT,0x00);
+	}
 }
 
-void Lcd_Reset(void)
+uint8_t GetFont(uint8_t dat)
 {
-	HAL_GPIO_WritePin(LCD_RST_GPIO_Port,LCD_RST_Pin,GPIO_PIN_SET);
-	HAL_Delay(1);
-	HAL_GPIO_WritePin(LCD_RST_GPIO_Port,LCD_RST_Pin,GPIO_PIN_RESET);
-	HAL_Delay(1);
-	HAL_GPIO_WritePin(LCD_RST_GPIO_Port,LCD_RST_Pin,GPIO_PIN_SET);
-	HAL_Delay(120);
+	return dat-32;
 }
 
-//LCD Init For 1.44Inch LCD Panel with ST7735R.
-void Lcd_Init(void)
-{	
-	Lcd_Reset(); //Reset before LCD Init.
+uint8_t bin[]={1,2,4,8,16,32,64,128};
+unsigned char Reverse(unsigned char x)
+{
+	unsigned char t=0;
+	for(unsigned char i=0;i<8;i++)
+	{
+		t+=((x&0x80)?1:0)*bin[i];
+		x<<=1;
+	}
+	return t;
+}
 
-	//LCD Init For 1.44Inch LCD Panel with ST7735R.
-	Lcd_WriteIndex(0x11);//Sleep exit 
-	HAL_Delay (120);
+void g_puts(uint8_t ch)
+{
+	uint8_t i,p=GetFont(ch);
+	for(i=0;i<6;i++)
+	{
+		LCD_SetXY(g_x,g_line);
+		LCD_WriteByte(DAT,Reverse(font6x8[p][i]));
+		//LCD_WriteByte(DAT,font6x8[p][i]);
+		g_x++;
 		
-	//ST7735R Frame Rate
-	Lcd_WriteIndex(0xB1); 
-	Lcd_WriteData(0x01); 
-	Lcd_WriteData(0x2C); 
-	Lcd_WriteData(0x2D); 
-
-	Lcd_WriteIndex(0xB2); 
-	Lcd_WriteData(0x01); 
-	Lcd_WriteData(0x2C); 
-	Lcd_WriteData(0x2D); 
-
-	Lcd_WriteIndex(0xB3); 
-	Lcd_WriteData(0x01); 
-	Lcd_WriteData(0x2C); 
-	Lcd_WriteData(0x2D); 
-	Lcd_WriteData(0x01); 
-	Lcd_WriteData(0x2C); 
-	Lcd_WriteData(0x2D); 
-	
-	Lcd_WriteIndex(0xB4); //Column inversion 
-	Lcd_WriteData(0x07); 
-	
-	//ST7735R Power Sequence
-	Lcd_WriteIndex(0xC0); 
-	Lcd_WriteData(0xA2); 
-	Lcd_WriteData(0x02); 
-	Lcd_WriteData(0x84); 
-	Lcd_WriteIndex(0xC1); 
-	Lcd_WriteData(0xC5); 
-
-	Lcd_WriteIndex(0xC2); 
-	Lcd_WriteData(0x0A); 
-	Lcd_WriteData(0x00); 
-
-	Lcd_WriteIndex(0xC3); 
-	Lcd_WriteData(0x8A); 
-	Lcd_WriteData(0x2A); 
-	Lcd_WriteIndex(0xC4); 
-	Lcd_WriteData(0x8A); 
-	Lcd_WriteData(0xEE); 
-	
-	Lcd_WriteIndex(0xC5); //VCOM 
-	Lcd_WriteData(0x0E); 
-	
-	Lcd_WriteIndex(0x36); //MX, MY, RGB mode 
-	Lcd_WriteData(0xC0); 
-	
-	//ST7735R Gamma Sequence
-	Lcd_WriteIndex(0xe0); 
-	Lcd_WriteData(0x0f); 
-	Lcd_WriteData(0x1a); 
-	Lcd_WriteData(0x0f); 
-	Lcd_WriteData(0x18); 
-	Lcd_WriteData(0x2f); 
-	Lcd_WriteData(0x28); 
-	Lcd_WriteData(0x20); 
-	Lcd_WriteData(0x22); 
-	Lcd_WriteData(0x1f); 
-	Lcd_WriteData(0x1b); 
-	Lcd_WriteData(0x23); 
-	Lcd_WriteData(0x37); 
-	Lcd_WriteData(0x00); 	
-	Lcd_WriteData(0x07); 
-	Lcd_WriteData(0x02); 
-	Lcd_WriteData(0x10); 
-
-	Lcd_WriteIndex(0xe1); 
-	Lcd_WriteData(0x0f); 
-	Lcd_WriteData(0x1b); 
-	Lcd_WriteData(0x0f); 
-	Lcd_WriteData(0x17); 
-	Lcd_WriteData(0x33); 
-	Lcd_WriteData(0x2c); 
-	Lcd_WriteData(0x29); 
-	Lcd_WriteData(0x2e); 
-	Lcd_WriteData(0x30); 
-	Lcd_WriteData(0x30); 
-	Lcd_WriteData(0x39); 
-	Lcd_WriteData(0x3f); 
-	Lcd_WriteData(0x00); 
-	Lcd_WriteData(0x07); 
-	Lcd_WriteData(0x03); 
-	Lcd_WriteData(0x10);  
-	
-	Lcd_WriteIndex(0x2a);
-	Lcd_WriteData(0x00);
-	Lcd_WriteData(0x00);
-	Lcd_WriteData(0x00);
-	Lcd_WriteData(0x7f);
-
-	Lcd_WriteIndex(0x2b);
-	Lcd_WriteData(0x00);
-	Lcd_WriteData(0x00);
-	Lcd_WriteData(0x00);
-	Lcd_WriteData(0x9f);
-	
-	Lcd_WriteIndex(0xF0); //Enable test command  
-	Lcd_WriteData(0x01); 
-	Lcd_WriteIndex(0xF6); //Disable ram power save mode 
-	Lcd_WriteData(0x00); 
-	
-	Lcd_WriteIndex(0x3A); //65k mode 
-	Lcd_WriteData(0x05); 
-	
-	
-	Lcd_WriteIndex(0x29);//Display on	 
-	Lcd_Clear(BLACK);
-	ForeFont_Color=GREEN;
-	Backgound_Color=BLACK;
+	}
 }
 
-
-/*************************************************
-函数名：LCD_Set_Region
-功能：设置lcd显示区域，在此区域写点数据自动换行
-入口参数：xy起点和终点
-返回值：无
-*************************************************/
-void Lcd_SetRegion(uint16_t x_start,uint16_t y_start,uint16_t x_end,uint16_t y_end)
-{		
-	Lcd_WriteIndex(0x2a);
-	Lcd_WriteData(0x00);
-	Lcd_WriteData(x_start);//Lcd_WriteData(x_start+2);
-	Lcd_WriteData(0x00);
-	Lcd_WriteData(x_end+2);
-
-	Lcd_WriteIndex(0x2b);
-	Lcd_WriteData(0x00);
-	Lcd_WriteData(y_start+0);
-	Lcd_WriteData(0x00);
-	Lcd_WriteData(y_end+1);
-	
-	Lcd_WriteIndex(0x2c);
-
-}
-
-/*************************************************
-函数名：LCD_Set_XY
-功能：设置lcd显示起始点
-入口参数：xy坐标
-返回值：无
-*************************************************/
-void Lcd_SetXY(uint16_t x,uint16_t y)
+//write by userdefine-font
+void u_puts(uint8_t* user_define_font)
 {
-  	Lcd_SetRegion(x,y,x,y);
+	uint8_t i;
+	for(i=0;i<6;i++)
+	{
+		LCD_SetXY(g_x,g_line);
+		LCD_WriteByte(DAT,Reverse(user_define_font[i]));
+		//LCD_WriteByte(DAT,font6x8[p][i]);
+		g_x++;
+	}
 }
 
-	
-/*************************************************
-函数名：LCD_DrawPoint
-功能：画一个点
-入口参数：无
-返回值：无
-*************************************************/
-void Gui_DrawPoint(uint16_t x,uint16_t y,uint16_t Data)
+void g_print(char* dat)
 {
-	Lcd_SetRegion(x,y,x+1,y+1);
-	LCD_WriteData_16Bit(Data);
+	uint8_t cc=*dat;//ShowChar(cc);
+	while(cc!=0)
+	{
+		cc=*(dat++);
+		g_puts(cc);
+	}
+}
 
-}    
-
-/*****************************************
- 函数功能：读TFT某一点的颜色                          
- 出口参数：color  点颜色值                                 
-******************************************/
-unsigned int Lcd_ReadPoint(uint16_t x,uint16_t y)
+void SetLine(uint8_t line)
 {
-  unsigned int Data;
-  Lcd_SetXY(x,y);
-
-  //Lcd_ReadData();//丢掉无用字节
-  //Data=Lcd_ReadData();
-  Lcd_WriteData(Data);
-  return Data;
-}
-/*************************************************
-函数名：Lcd_Clear
-功能：全屏清屏函数
-入口参数：填充颜色COLOR
-返回值：无
-*************************************************/
-void Lcd_Clear(uint16_t Color)               
-{	
-   unsigned int i,m;
-   Lcd_SetRegion(0,0,X_MAX_PIXEL-1,Y_MAX_PIXEL-1);
-   Lcd_WriteIndex(0x2C);
-   for(i=0;i<X_MAX_PIXEL;i++)
-    for(m=0;m<Y_MAX_PIXEL;m++)
-    {	
-	  	LCD_WriteData_16Bit(Color);
-    }   
+	g_line=line;
+	//LCD_SetXY(83,5-line);
+	LCD_SetXY(0,line);
 }
 
+uint8_t line_ctl=0;
+
+void GUI_SetLine(uint8_t line)
+{
+	line_ctl=line;
+}
+
+void f_print(char* dat)
+{
+	uint8_t cnt=0,length=strlen((const char*)dat);
+	char buffer[14];
+	memset(buffer,0,sizeof(buffer));
+	if(length<=14)
+	{
+		memset(buffer,' ',sizeof(buffer));
+		for(cnt=0;cnt<length;cnt++)
+			buffer[cnt]=dat[cnt];
+		l_print(buffer,line_ctl,Left);
+		if(line_ctl==6)
+			line_ctl=0;
+		else
+			line_ctl++;
+	}
+	else
+	{
+		while(length-cnt>14)
+		{
+			memcpy(buffer,dat+cnt,14);
+			l_print((char*)&"              ",line_ctl,Left);
+			l_print(buffer,line_ctl,Left);
+			if(line_ctl==6)
+				line_ctl=0;
+			else
+				line_ctl++;
+			memset(buffer,0,sizeof(buffer));
+			cnt+=14;
+		}
+		memcpy(buffer,dat+cnt,length-cnt);
+		uint8_t t_buffer[14];
+		memset(t_buffer,' ',sizeof(t_buffer));
+		for(cnt=0;cnt<length;cnt++)
+			t_buffer[cnt]=buffer[cnt];
+		l_print(buffer,line_ctl,Left);
+		if(line_ctl==6)
+				line_ctl=0;
+		else
+			line_ctl++;
+	}
+}
+
+void l_print(char* dat,uint8_t line,enum StrLocation loc)
+{
+	//14 chars
+	uint8_t length=strlen((const char*)dat),i;
+	if(loc==Middle)
+	{
+		SetLine(line);
+		for(i=0;i<(14-length)/2;i++) g_puts(' ');
+	}		
+	else if(loc==Left) SetLine(line);
+	else if(loc==Right) LCD_SetXY(13-length,line);
+	g_print(dat);
+}
+
+unsigned char font6x8[][6] =  
+{  
+    { 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 },   // sp  
+    { 0x00, 0x00, 0x00, 0x2f, 0x00, 0x00 },   // !  
+    { 0x00, 0x00, 0x07, 0x00, 0x07, 0x00 },   // "  
+    { 0x00, 0x14, 0x7f, 0x14, 0x7f, 0x14 },   // #  
+    { 0x00, 0x24, 0x2a, 0x7f, 0x2a, 0x12 },   // $  
+    { 0x00, 0x62, 0x64, 0x08, 0x13, 0x23 },   // %  
+    { 0x00, 0x36, 0x49, 0x55, 0x22, 0x50 },   // &  
+    { 0x00, 0x00, 0x05, 0x03, 0x00, 0x00 },   // '  
+    { 0x00, 0x00, 0x1c, 0x22, 0x41, 0x00 },   // (  
+    { 0x00, 0x00, 0x41, 0x22, 0x1c, 0x00 },   // )  
+    { 0x00, 0x14, 0x08, 0x3E, 0x08, 0x14 },   // *  
+    { 0x00, 0x08, 0x08, 0x3E, 0x08, 0x08 },   // +  
+    { 0x00, 0x00, 0x00, 0xA0, 0x60, 0x00 },   // ,  
+    { 0x00, 0x08, 0x08, 0x08, 0x08, 0x08 },   // -  
+    { 0x00, 0x00, 0x60, 0x60, 0x00, 0x00 },   // .  
+    { 0x00, 0x20, 0x10, 0x08, 0x04, 0x02 },   // /  
+    { 0x00, 0x3E, 0x51, 0x49, 0x45, 0x3E },   // 0  
+    { 0x00, 0x00, 0x42, 0x7F, 0x40, 0x00 },   // 1  
+    { 0x00, 0x42, 0x61, 0x51, 0x49, 0x46 },   // 2  
+    { 0x00, 0x21, 0x41, 0x45, 0x4B, 0x31 },   // 3  
+    { 0x00, 0x18, 0x14, 0x12, 0x7F, 0x10 },   // 4  
+    { 0x00, 0x27, 0x45, 0x45, 0x45, 0x39 },   // 5  
+    { 0x00, 0x3C, 0x4A, 0x49, 0x49, 0x30 },   // 6  
+    { 0x00, 0x01, 0x71, 0x09, 0x05, 0x03 },   // 7  
+    { 0x00, 0x36, 0x49, 0x49, 0x49, 0x36 },   // 8  
+    { 0x00, 0x06, 0x49, 0x49, 0x29, 0x1E },   // 9  
+    { 0x00, 0x00, 0x36, 0x36, 0x00, 0x00 },   // :  
+    { 0x00, 0x00, 0x56, 0x36, 0x00, 0x00 },   // ;  
+    { 0x00, 0x08, 0x14, 0x22, 0x41, 0x00 },   // <  
+    { 0x00, 0x14, 0x14, 0x14, 0x14, 0x14 },   // =  
+    { 0x00, 0x00, 0x41, 0x22, 0x14, 0x08 },   // >  
+    { 0x00, 0x02, 0x01, 0x51, 0x09, 0x06 },   // ?  
+    { 0x00, 0x32, 0x49, 0x59, 0x51, 0x3E },   // @  
+    { 0x00, 0x7C, 0x12, 0x11, 0x12, 0x7C },   // A  
+    { 0x00, 0x7F, 0x49, 0x49, 0x49, 0x36 },   // B  
+    { 0x00, 0x3E, 0x41, 0x41, 0x41, 0x22 },   // C  
+    { 0x00, 0x7F, 0x41, 0x41, 0x22, 0x1C },   // D  
+    { 0x00, 0x7F, 0x49, 0x49, 0x49, 0x41 },   // E  
+    { 0x00, 0x7F, 0x09, 0x09, 0x09, 0x01 },   // F  
+    { 0x00, 0x3E, 0x41, 0x49, 0x49, 0x7A },   // G  
+    { 0x00, 0x7F, 0x08, 0x08, 0x08, 0x7F },   // H  
+    { 0x00, 0x00, 0x41, 0x7F, 0x41, 0x00 },   // I  
+    { 0x00, 0x20, 0x40, 0x41, 0x3F, 0x01 },   // J  
+    { 0x00, 0x7F, 0x08, 0x14, 0x22, 0x41 },   // K  
+    { 0x00, 0x7F, 0x40, 0x40, 0x40, 0x40 },   // L  
+    { 0x00, 0x7F, 0x02, 0x0C, 0x02, 0x7F },   // M  
+    { 0x00, 0x7F, 0x04, 0x08, 0x10, 0x7F },   // N  
+    { 0x00, 0x3E, 0x41, 0x41, 0x41, 0x3E },   // O  
+    { 0x00, 0x7F, 0x09, 0x09, 0x09, 0x06 },   // P  
+    { 0x00, 0x3E, 0x41, 0x51, 0x21, 0x5E },   // Q  
+    { 0x00, 0x7F, 0x09, 0x19, 0x29, 0x46 },   // R  
+    { 0x00, 0x46, 0x49, 0x49, 0x49, 0x31 },   // S  
+    { 0x00, 0x01, 0x01, 0x7F, 0x01, 0x01 },   // T  
+    { 0x00, 0x3F, 0x40, 0x40, 0x40, 0x3F },   // U  
+    { 0x00, 0x1F, 0x20, 0x40, 0x20, 0x1F },   // V  
+    { 0x00, 0x3F, 0x40, 0x38, 0x40, 0x3F },   // W  
+    { 0x00, 0x63, 0x14, 0x08, 0x14, 0x63 },   // X  
+    { 0x00, 0x07, 0x08, 0x70, 0x08, 0x07 },   // Y  
+    { 0x00, 0x61, 0x51, 0x49, 0x45, 0x43 },   // Z  
+    { 0x00, 0x00, 0x7F, 0x41, 0x41, 0x00 },   // [  
+    { 0x00, 0x55, 0x2A, 0x55, 0x2A, 0x55 },   // 55  
+    { 0x00, 0x00, 0x41, 0x41, 0x7F, 0x00 },   // ]  
+    { 0x00, 0x04, 0x02, 0x01, 0x02, 0x04 },   // ^  
+    { 0x00, 0x40, 0x40, 0x40, 0x40, 0x40 },   // _  
+    { 0x00, 0x00, 0x01, 0x02, 0x04, 0x00 },   // '  
+    { 0x00, 0x20, 0x54, 0x54, 0x54, 0x78 },   // a  
+    { 0x00, 0x7F, 0x48, 0x44, 0x44, 0x38 },   // b  
+    { 0x00, 0x38, 0x44, 0x44, 0x44, 0x20 },   // c  
+    { 0x00, 0x38, 0x44, 0x44, 0x48, 0x7F },   // d  
+    { 0x00, 0x38, 0x54, 0x54, 0x54, 0x18 },   // e  
+    { 0x00, 0x08, 0x7E, 0x09, 0x01, 0x02 },   // f  
+    { 0x00, 0x18, 0xA4, 0xA4, 0xA4, 0x7C },   // g  
+    { 0x00, 0x7F, 0x08, 0x04, 0x04, 0x78 },   // h  
+    { 0x00, 0x00, 0x44, 0x7D, 0x40, 0x00 },   // i  
+    { 0x00, 0x40, 0x80, 0x84, 0x7D, 0x00 },   // j  
+    { 0x00, 0x7F, 0x10, 0x28, 0x44, 0x00 },   // k  
+    { 0x00, 0x00, 0x41, 0x7F, 0x40, 0x00 },   // l  
+    { 0x00, 0x7C, 0x04, 0x18, 0x04, 0x78 },   // m  
+    { 0x00, 0x7C, 0x08, 0x04, 0x04, 0x78 },   // n  
+    { 0x00, 0x38, 0x44, 0x44, 0x44, 0x38 },   // o  
+    { 0x00, 0xFC, 0x24, 0x24, 0x24, 0x18 },   // p  
+    { 0x00, 0x18, 0x24, 0x24, 0x18, 0xFC },   // q  
+    { 0x00, 0x7C, 0x08, 0x04, 0x04, 0x08 },   // r  
+    { 0x00, 0x48, 0x54, 0x54, 0x54, 0x20 },   // s  
+    { 0x00, 0x04, 0x3F, 0x44, 0x40, 0x20 },   // t  
+    { 0x00, 0x3C, 0x40, 0x40, 0x20, 0x7C },   // u  
+    { 0x00, 0x1C, 0x20, 0x40, 0x20, 0x1C },   // v  
+    { 0x00, 0x3C, 0x40, 0x30, 0x40, 0x3C },   // w  
+    { 0x00, 0x44, 0x28, 0x10, 0x28, 0x44 },   // x  
+    { 0x00, 0x1C, 0xA0, 0xA0, 0xA0, 0x7C },   // y  
+    { 0x00, 0x44, 0x64, 0x54, 0x4C, 0x44 },   // z  
+    { 0x14, 0x14, 0x14, 0x14, 0x14, 0x14 }    // horiz lines  
+};

@@ -20,6 +20,7 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "fatfs.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -47,8 +48,6 @@ IWDG_HandleTypeDef hiwdg;
 
 RTC_HandleTypeDef hrtc;
 
-SPI_HandleTypeDef hspi1;
-
 TIM_HandleTypeDef htim4;
 
 UART_HandleTypeDef huart1;
@@ -60,14 +59,26 @@ UART_HandleTypeDef huart1;
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
-static void MX_SPI1_Init(void);
 static void MX_USART1_UART_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_RTC_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_IWDG_Init(void);
 /* USER CODE BEGIN PFP */
-#define NETWORK_UPDATE_TIME 60
+
+#define PULSE_TIME_MS 100
+
+#define SAMPLE_UPDATE_TICK (uint16_t)((0.3)*(1000/PULSE_TIME_MS))
+
+#define NETWORK_UPDATE_TICK (uint16_t)((45)*(1000/PULSE_TIME_MS))
+#define DHT11_UPDATE_TICK (uint16_t)((0.8)*(1000/PULSE_TIME_MS))
+#define LED_UPDATE_TICK (uint16_t)((0.5)*(1000/PULSE_TIME_MS))
+//#define USE_FILESYSTEM
+
+#ifdef USE_FILESYSTEM
+#include "fatfs.h"
+#endif
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -85,25 +96,16 @@ void delay_us(uint32_t i)
 	HAL_TIM_Base_Stop(&htim4);
 }
 
-void HomeScreen()
+void HOME_SCREEN(void)
 {
-	Lcd_Clear(BLACK);
-	line_ctl=0;
-	g_print("  Intelli-Sw  ");
-	ForeFont_Color=WHITE;
-	g_print(" IOT-X Server ");
-	g_print("Pwd by ARM CM4");
-	g_print("20 13:54:36 We");
-	//BMP280_CHIPID_REG
-	bmp280_init();
-	g_print("TEMP:");
-	g_print("QNH:");
-	g_print("ILLU:");
-	g_print("HUMI:");
-	g_print("No Data Recv.");
-	ForeFont_Color=LightSeaGreen;
+	LCD_Clean();
+	l_print("IntelliSw",0,Middle);
+	l_print("Wek HH:mm:ss",1,Middle);
+	l_print("TEMP:",2,Left);
+	l_print("QNH:",3,Left);
+	l_print("ILLU:",4,Left);
+	l_print("HUMI:",5,Left);
 }
-
 
 //format $24.71:52:1013.52:100.0
 uint8_t databuff[32];
@@ -112,13 +114,19 @@ void MakeData(void)
 {
 	memset(databuff,0,sizeof(databuff));
 	sprintf((char*)databuff,"$%.2f:%hhu:%.2f:%.1f#",bmp_280_temperature,DHT11_HUMIDITY,bmp_280_atmospressure,illuminance);
+	#ifdef USE_FILESYSTEM
+	char datrec[32];
+	memset(datrec,0,sizeof(datrec));
+	sprintf(datrec,"%.2f,%hhu,%.2f,%.1f\n",bmp_280_temperature,DHT11_HUMIDITY,bmp_280_atmospressure,illuminance);
+	FS_AppendFile("envlog.csv",datrec);
+	#endif
 }
 
 uint8_t rev_cnt=0;
 uint8_t display_esp=0;
 uint8_t LED_ON=1;
 uint8_t rev_char=0;
-uint8_t rev_buff[32];
+uint8_t rev_buff[128];
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
@@ -153,43 +161,89 @@ void ESP_SendData(uint8_t* dat)
 
 void ESP_Reset(void)
 {
-	HAL_GPIO_WritePin(ESP8266_RST_GPIO_Port,ESP8266_RST_Pin,0);
+	HAL_GPIO_WritePin(ESP8266_RST_GPIO_Port,ESP8266_RST_Pin,GPIO_PIN_RESET);
 	HAL_Delay(5);
-	HAL_GPIO_WritePin(ESP8266_RST_GPIO_Port,ESP8266_RST_Pin,1);
+	HAL_GPIO_WritePin(ESP8266_RST_GPIO_Port,ESP8266_RST_Pin,GPIO_PIN_SET);
 }
 
 void ESP_Init(void)
 {
 	//AT+CWMODE=1
+	#ifdef USE_FILESYSTEM
+	char SSID[16];
+	char PASSWD[20];
+	char IPADDR[20];
+	char TCP_PORT[7];//65536
+	memset(SSID,0,sizeof(SSID));
+	memset(PASSWD,0,sizeof(PASSWD));
+	memset(IPADDR,0,sizeof(IPADDR));
+	memset(TCP_PORT,0,sizeof(TCP_PORT));
+	retUSER=f_open(&USERFile,"esp.txt",FA_OPEN_EXISTING|FA_READ);
+	
+	f_gets(SSID,sizeof(SSID),&USERFile);
+	f_gets(PASSWD,sizeof(PASSWD),&USERFile);
+	f_gets(IPADDR,sizeof(IPADDR),&USERFile);
+	f_gets(TCP_PORT,sizeof(TCP_PORT),&USERFile);
+	retUSER+=f_close(&USERFile);
+	if(retUSER)
+	{
+		f_print("Fail to load filesys");
+		return;
+	}
+	SSID[strlen(SSID)-1]=0;
+	PASSWD[strlen(PASSWD)-1]=0;
+	IPADDR[strlen(IPADDR)-1]=0;
+	TCP_PORT[strlen(TCP_PORT)-1]=0;
+	#else
+	char SSID[16]="801";
+	char PASSWD[20]="bao32801";
+	char IPADDR[20]="129.204.224.55";
+	char TCP_PORT[8]="10010";//65536
+	#endif
+	
+	char AT_CWJAP[64];
+	char AT_CIPSTART[80];
+	memset(AT_CWJAP,0,sizeof(AT_CWJAP));
+	memset(AT_CIPSTART,0,sizeof(AT_CIPSTART));
+	
+	sprintf(AT_CWJAP,"AT+CWJAP=\"%s\",\"%s\"",SSID,PASSWD);
+	sprintf(AT_CIPSTART,"AT+CIPSTART=\"TCP\",\"%s\",%s",IPADDR,TCP_PORT);
+	
 	HAL_Delay(500);
+	ESP_SendAT("+++");
+	HAL_Delay(100);
 	ESP_Reset();
 	HAL_Delay(2500);
-	g_print("NETWORK INIT");
+	
+	f_print("NETWORK INIT");
 	ESP_SendAT("AT+CWMODE=1");
 	HAL_Delay(5);
 	ESP_SendAT("AT+SLEEP=2");
 	HAL_Delay(5);
-	ESP_SendAT("AT+CWJAP=\"801\",\"bao32801\"");
-	g_print("WIFICONNECTING");
+	ESP_SendAT(AT_CWJAP);
+	f_print("WIFICONNECTING");
 	HAL_Delay(12000);
 	ESP_SendAT("AT+CIFSR");
 	HAL_Delay(100);
 	ESP_SendAT("AT+CIPMUX=0");
-	g_print("WIFICONN--[OK]");
+	f_print("WIFICONN--[OK]");
 	HAL_Delay(100);
 	ESP_SendAT("AT+CIPMODE=1");
 	HAL_Delay(100);
-	ESP_SendAT("AT+CIPSTART=\"TCP\",\"129.204.224.55\",10010");
-	g_print("Connecting to Data Uploader");
+	ESP_SendAT(AT_CIPSTART);
+	f_print("Connecting to Data Uploader");
 	HAL_Delay(5000);
 	ESP_SendAT("AT+CIPSEND");
-	g_print("MODESET---[OK]");
+	f_print("MODESET---[OK]");
 	HAL_Delay(1000);
 	display_esp=0;
+	LCD_Clean();
+	
 }
 
 uint8_t rtc_time[14]="Wed 15:58:35";
 uint8_t week[3]="Wed";
+char timebuff[14];
 
 RTC_TimeTypeDef server_Time = {0};//服务器更新的时间
 RTC_TimeTypeDef now_Time = {0};//当前时间
@@ -217,7 +271,7 @@ void RTC_Update(void)
 
 
 //ESP8266看门狗，若从服务器收到的时间更新信息120秒内没有更新，则判定ESP8266宕机，即复位ESP8266
-//ESP8266看门狗程序触发于Display_Time
+//ESP8266看门狗程序触发于Display_Time，时间更新函数
 void ESP8266_WatchDog(void)
 {
 	short deltaTime=0;
@@ -227,14 +281,14 @@ void ESP8266_WatchDog(void)
 	{
 		ESP_Reset();
 		ESP_Init();
-		HomeScreen();
+		HOME_SCREEN();
 	}
 }
 
 void Display_Time(void)
 {
 	//3
-	uint8_t timebuff[14];
+	
 	uint8_t hour,minute,second;
 	RTC_DateTypeDef sDate={0};
 	HAL_RTC_GetTime(&hrtc,&now_Time,RTC_FORMAT_BIN);
@@ -242,9 +296,72 @@ void Display_Time(void)
 	hour=now_Time.Hours;minute=now_Time.Minutes;second=now_Time.Seconds;
 	
 	memset(timebuff,0,sizeof(timebuff));
-	sprintf((char*)timebuff,"%s %02hhu:%02hhu:%02hhu",week,hour,minute,second);
-	l_print(timebuff,3);
+	sprintf(timebuff,"%s %02hhu:%02hhu:%02hhu",week,hour,minute,second);
+	l_print(timebuff,1,Middle);
 	ESP8266_WatchDog();
+}
+
+//用户应用抢占屏幕显示
+uint8_t AppMode=0;
+
+void AppHandler_Char(void)
+{
+	AppMode=1;
+	char scrbuffer[14];
+	
+	memset(scrbuffer,0,sizeof(scrbuffer));
+	memcpy(scrbuffer,rev_buff+3,14);
+	l_print(scrbuffer,0,Left);
+	
+	memset(scrbuffer,0,sizeof(scrbuffer));
+	memcpy(scrbuffer,rev_buff+3+14,14);
+	l_print(scrbuffer,1,Left);
+	
+	memset(scrbuffer,0,sizeof(scrbuffer));
+	memcpy(scrbuffer,rev_buff+3+14+14,14);
+	l_print(scrbuffer,2,Left);
+	
+	memset(scrbuffer,0,sizeof(scrbuffer));
+	memcpy(scrbuffer,rev_buff+3+14+14+14,14);
+	l_print(scrbuffer,3,Left);
+	
+	memset(scrbuffer,0,sizeof(scrbuffer));
+	memcpy(scrbuffer,rev_buff+3+14+14+14+14,14);
+	l_print(scrbuffer,4,Left);
+	
+	memset(scrbuffer,0,sizeof(scrbuffer));
+	memcpy(scrbuffer,rev_buff+3+14+14+14+14+14,14);
+	l_print(scrbuffer,5,Left);
+}
+
+void AppHandler_Pixel(void)
+{
+	AppMode=1;
+	char scrbuffer[14];
+	
+	memset(scrbuffer,0,sizeof(scrbuffer));
+	memcpy(scrbuffer,rev_buff+3,14);
+	l_print(scrbuffer,0,Left);
+	
+	memset(scrbuffer,0,sizeof(scrbuffer));
+	memcpy(scrbuffer,rev_buff+3+14,14);
+	l_print(scrbuffer,1,Left);
+	
+	memset(scrbuffer,0,sizeof(scrbuffer));
+	memcpy(scrbuffer,rev_buff+3+14+14,14);
+	l_print(scrbuffer,2,Left);
+	
+	memset(scrbuffer,0,sizeof(scrbuffer));
+	memcpy(scrbuffer,rev_buff+3+14+14+14,14);
+	l_print(scrbuffer,3,Left);
+	
+	memset(scrbuffer,0,sizeof(scrbuffer));
+	memcpy(scrbuffer,rev_buff+3+14+14+14+14,14);
+	l_print(scrbuffer,4,Left);
+	
+	memset(scrbuffer,0,sizeof(scrbuffer));
+	memcpy(scrbuffer,rev_buff+3+14+14+14+14+14,14);
+	l_print(scrbuffer,5,Left);
 }
 
 void Data_Receive(void)
@@ -261,64 +378,78 @@ void Data_Receive(void)
 		else if(deviceID==1)
 		{
 			if(rev_buff[5]-48==0)
-				HAL_GPIO_WritePin(IOT_OUTPUT_1_GPIO_Port,IOT_OUTPUT_1_Pin,0);
+				HAL_GPIO_WritePin(IOT_OUTPUT_1_GPIO_Port,IOT_OUTPUT_1_Pin,GPIO_PIN_RESET);
 			else
-				HAL_GPIO_WritePin(IOT_OUTPUT_1_GPIO_Port,IOT_OUTPUT_1_Pin,1);
+				HAL_GPIO_WritePin(IOT_OUTPUT_1_GPIO_Port,IOT_OUTPUT_1_Pin,GPIO_PIN_SET);
 		}
 		else if(deviceID==2)
 		{
 			if(rev_buff[5]-48==0)
-				HAL_GPIO_WritePin(IOT_OUTPUT_2_GPIO_Port,IOT_OUTPUT_2_Pin,0);
+				HAL_GPIO_WritePin(IOT_OUTPUT_2_GPIO_Port,IOT_OUTPUT_2_Pin,GPIO_PIN_RESET);
 			else
-				HAL_GPIO_WritePin(IOT_OUTPUT_2_GPIO_Port,IOT_OUTPUT_2_Pin,1);
+				HAL_GPIO_WritePin(IOT_OUTPUT_2_GPIO_Port,IOT_OUTPUT_2_Pin,GPIO_PIN_SET);
 		}
 		else if(deviceID==3)
 		{
 			if(rev_buff[5]-48==0)
-				HAL_GPIO_WritePin(IOT_OUTPUT_3_GPIO_Port,IOT_OUTPUT_3_Pin,0);
+				HAL_GPIO_WritePin(IOT_OUTPUT_3_GPIO_Port,IOT_OUTPUT_3_Pin,GPIO_PIN_RESET);
 			else
-				HAL_GPIO_WritePin(IOT_OUTPUT_3_GPIO_Port,IOT_OUTPUT_3_Pin,1);
+				HAL_GPIO_WritePin(IOT_OUTPUT_3_GPIO_Port,IOT_OUTPUT_3_Pin,GPIO_PIN_SET);
 		}
 		else if(deviceID==4)
 		{
 			if(rev_buff[5]-48==0)
-				HAL_GPIO_WritePin(IOT_OUTPUT_4_GPIO_Port,IOT_OUTPUT_4_Pin,0);
+				HAL_GPIO_WritePin(IOT_OUTPUT_4_GPIO_Port,IOT_OUTPUT_4_Pin,GPIO_PIN_RESET);
 			else
-				HAL_GPIO_WritePin(IOT_OUTPUT_4_GPIO_Port,IOT_OUTPUT_4_Pin,1);
+				HAL_GPIO_WritePin(IOT_OUTPUT_4_GPIO_Port,IOT_OUTPUT_4_Pin,GPIO_PIN_SET);
 		}
 		else if(deviceID==5)
 		{
 			if(rev_buff[5]-48==0)
-				HAL_GPIO_WritePin(IOT_OUTPUT_5_GPIO_Port,IOT_OUTPUT_5_Pin,0);
+				HAL_GPIO_WritePin(IOT_OUTPUT_5_GPIO_Port,IOT_OUTPUT_5_Pin,GPIO_PIN_RESET);
 			else
-				HAL_GPIO_WritePin(IOT_OUTPUT_5_GPIO_Port,IOT_OUTPUT_5_Pin,1);
+				HAL_GPIO_WritePin(IOT_OUTPUT_5_GPIO_Port,IOT_OUTPUT_5_Pin,GPIO_PIN_SET);
 		}
-		else if(deviceID==6)
-		{
-			if(rev_buff[5]-48==0)
-				HAL_GPIO_WritePin(IOT_OUTPUT_6_GPIO_Port,IOT_OUTPUT_6_Pin,0);
-			else
-				HAL_GPIO_WritePin(IOT_OUTPUT_6_GPIO_Port,IOT_OUTPUT_6_Pin,1);
-		}
-		else if(deviceID==7)
-		{
-			if(rev_buff[5]-48==0)
-				HAL_GPIO_WritePin(IOT_OUTPUT_7_GPIO_Port,IOT_OUTPUT_7_Pin,0);
-			else
-				HAL_GPIO_WritePin(IOT_OUTPUT_7_GPIO_Port,IOT_OUTPUT_7_Pin,1);
-		}
-		l_print(rev_buff,8);
 	}
 	else if(rev_buff[1]=='D'&&rev_buff[2]=='T')
 	{
 		RTC_Update();
 	}
+	else if(rev_buff[1]=='A'&&rev_buff[2]=='P')
+	{
+		AppHandler_Char();
+		//$AF00000000000000 
+		//   11111111111111 
+		//   AAAAAAAAAAAAAA 
+		//   zzzzzzzzzzzzzz
+		//   LCD5110TEST233
+		//   OKOKOKOKOKOKOK#
+		//$AP0000000000000011111111111111AAAAAAAAAAAAAAzzzzzzzzzzzzzzLCD5110TEST233OKOKOKOKOKOKOK# 
+	}
+	else if(rev_buff[1]=='A'&&rev_buff[2]=='p')
+	{
+		AppHandler_Char();
+		//$AF00000000000000 
+		//   11111111111111 
+		//   AAAAAAAAAAAAAA 
+		//   zzzzzzzzzzzzzz
+		//   LCD5110TEST233
+		//   OKOKOKOKOKOKOK#
+		//$AP0000000000000011111111111111AAAAAAAAAAAAAAzzzzzzzzzzzzzzLCD5110TEST233OKOKOKOKOKOKOK# 
+	}
+	else if(rev_buff[1]=='E'&&rev_buff[2]=='A')
+	{
+		//关闭用户抢占模式，恢复屏幕显示
+		AppMode=0;
+		HOME_SCREEN();
+	}
 	else if(rev_buff[1]=='E'&&rev_buff[2]=='R'&&rev_buff[3]=='S')
 	{
 		//$ERS#
-		ESP_Reset();
+		ESP_SendAT("AT+RESTORE");
+		HAL_Delay(500);
 		ESP_Init();
-		HomeScreen();
+		HOME_SCREEN();
 	}
 	else if(rev_buff[1]=='F'&&rev_buff[2]=='R'&&rev_buff[3]=='S')
 	{
@@ -328,11 +459,20 @@ void Data_Receive(void)
 	else if(rev_buff[1]=='F'&&rev_buff[2]=='R'&&rev_buff[3]=='S')
 	{
 		//$SRS# 屏幕初始化
-		Lcd_Init();
-		HomeScreen();
+		LCD_Init();
+		HOME_SCREEN();
 	}
+	#ifdef USE_FILESYSTEM
+	FS_LOG(timebuff);
+	FS_LOG((char*)rev_buff);
+	#endif
 }
 
+
+
+volatile uint16_t sample_cnt=SAMPLE_UPDATE_TICK;
+volatile uint16_t dht11cnt=DHT11_UPDATE_TICK,ledcnt=LED_UPDATE_TICK;
+volatile uint16_t net_cnt=NETWORK_UPDATE_TICK;
 /* USER CODE END 0 */
 
 /**
@@ -342,7 +482,7 @@ void Data_Receive(void)
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	uint8_t cnt=3,net_cnt=NETWORK_UPDATE_TIME;
+	
   /* USER CODE END 1 */
   
 
@@ -364,17 +504,23 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_SPI1_Init();
   MX_USART1_UART_Init();
   MX_I2C1_Init();
   MX_RTC_Init();
   MX_TIM4_Init();
+	#ifdef USE_FILESYSTEM
+  MX_FATFS_Init();
+	#endif
   /* USER CODE BEGIN 2 */
 	HAL_UART_Receive_IT(&huart1,&rev_char,1);
 	HAL_Delay(800);
-	Lcd_Init();
+	LCD_Init();
 	ESP_Init();
-	HomeScreen();
+	bmp280_init();
+	HOME_SCREEN();
+	#ifdef USE_FILESYSTEM
+	FS_LOG("LOADED OK\r\n");
+	#endif
 	HAL_Delay(200);
 	//HomeScreen();
   /* USER CODE END 2 */
@@ -384,28 +530,29 @@ int main(void)
 	MX_IWDG_Init();
   while (1)
   {
-		bmp280_getTemperature();
-		bmp280_getAtmosPressure();
-		bh1750_getIlluminance();
+		if(sample_cnt>=SAMPLE_UPDATE_TICK)
+		{
+			bmp280_getTemperature();
+			bmp280_getAtmosPressure();
+			bh1750_getIlluminance();
+			sample_cnt=0;
+		}
+		HAL_Delay(PULSE_TIME_MS);
 		
-		HAL_GPIO_WritePin(LED_TEST_GPIO_Port,LED_TEST_Pin,GPIO_PIN_SET);
-		l_print("$iot: ",line_ctl);
-		HAL_Delay(150);
-		
-		if(LED_ON)
-			HAL_GPIO_WritePin(LED_TEST_GPIO_Port,LED_TEST_Pin,GPIO_PIN_RESET);
-		
-		l_print("$iot:_",line_ctl);
-		HAL_Delay(150);
-		
-		cnt++;
-		net_cnt++;
-		if(cnt>=3)
+		if(dht11cnt>=DHT11_UPDATE_TICK)
 		{
 			DHT11_Output();
-			cnt=0;
+			dht11cnt=0;
 		}
-		if(net_cnt>=NETWORK_UPDATE_TIME)
+		if(ledcnt>=LED_UPDATE_TICK)
+		{
+			if(LED_ON)
+				HAL_GPIO_TogglePin(LED_TEST_GPIO_Port,LED_TEST_Pin);
+			else
+				HAL_GPIO_WritePin(LED_TEST_GPIO_Port,LED_TEST_Pin,GPIO_PIN_SET);
+			ledcnt=0;
+		}
+		if(net_cnt>=NETWORK_UPDATE_TICK)
 		{
 			MakeData();
 			ESP_SendData(databuff);
@@ -418,8 +565,14 @@ int main(void)
 			rev_cnt=0;
 			memset(rev_buff,0,sizeof(rev_buff));
 		}
+		if(!AppMode)
+			Display_Time();
 		
-		Display_Time();
+		dht11cnt++;
+		net_cnt++;
+		ledcnt++;
+		sample_cnt++;
+		
 		HAL_IWDG_Refresh(&hiwdg);
     /* USER CODE END WHILE */
 
@@ -605,44 +758,6 @@ static void MX_RTC_Init(void)
 }
 
 /**
-  * @brief SPI1 Initialization Function
-  * @param None
-  * @retval None
-  */
-static void MX_SPI1_Init(void)
-{
-
-  /* USER CODE BEGIN SPI1_Init 0 */
-
-  /* USER CODE END SPI1_Init 0 */
-
-  /* USER CODE BEGIN SPI1_Init 1 */
-
-  /* USER CODE END SPI1_Init 1 */
-  /* SPI1 parameter configuration*/
-  hspi1.Instance = SPI1;
-  hspi1.Init.Mode = SPI_MODE_MASTER;
-  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-  hspi1.Init.NSS = SPI_NSS_SOFT;
-  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_16;
-  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
-  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-  hspi1.Init.CRCPolynomial = 10;
-  if (HAL_SPI_Init(&hspi1) != HAL_OK)
-  {
-    Error_Handler();
-  }
-  /* USER CODE BEGIN SPI1_Init 2 */
-
-  /* USER CODE END SPI1_Init 2 */
-
-}
-
-/**
   * @brief TIM4 Initialization Function
   * @param None
   * @retval None
@@ -739,14 +854,15 @@ static void MX_GPIO_Init(void)
   HAL_GPIO_WritePin(LED_TEST_GPIO_Port, LED_TEST_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, SPI1_CS_Pin|LCD_RST_Pin|LCD_DC_Pin|IOT_OUTPUT_1_Pin 
-                          |IOT_OUTPUT_3_Pin|IOT_OUTPUT_4_Pin|DHT11_PORT_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOA, LCD_SCK_Pin|LCD_DIN_Pin|IOT_OUTPUT_5_Pin|IOT_OUTPUT_3_Pin 
+                          |IOT_OUTPUT_4_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, IOT_OUTPUT_2_Pin|ESP8266_RST_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOB, LCD_CE_Pin|LCD_RST_Pin|LCD_DC_Pin|SD_SCK_Pin 
+                          |IOT_OUTPUT_1_Pin|SD_MOSI_Pin|DHT11_PORT_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, IOT_OUTPUT_5_Pin|IOT_OUTPUT_6_Pin|IOT_OUTPUT_7_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, IOT_OUTPUT_2_Pin|ESP8266_RST_Pin|SD_CS_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : LED_TEST_Pin */
   GPIO_InitStruct.Pin = LED_TEST_Pin;
@@ -755,17 +871,37 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(LED_TEST_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : SPI1_CS_Pin LCD_RST_Pin LCD_DC_Pin IOT_OUTPUT_1_Pin 
-                           IOT_OUTPUT_2_Pin IOT_OUTPUT_3_Pin IOT_OUTPUT_4_Pin ESP8266_RST_Pin */
-  GPIO_InitStruct.Pin = SPI1_CS_Pin|LCD_RST_Pin|LCD_DC_Pin|IOT_OUTPUT_1_Pin 
-                          |IOT_OUTPUT_2_Pin|IOT_OUTPUT_3_Pin|IOT_OUTPUT_4_Pin|ESP8266_RST_Pin;
+  /*Configure GPIO pins : LCD_SCK_Pin LCD_DIN_Pin */
+  GPIO_InitStruct.Pin = LCD_SCK_Pin|LCD_DIN_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : LCD_CE_Pin LCD_RST_Pin LCD_DC_Pin SD_CS_Pin */
+  GPIO_InitStruct.Pin = LCD_CE_Pin|LCD_RST_Pin|LCD_DC_Pin|SD_CS_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : SD_SCK_Pin IOT_OUTPUT_1_Pin IOT_OUTPUT_2_Pin SD_MOSI_Pin 
+                           ESP8266_RST_Pin */
+  GPIO_InitStruct.Pin = SD_SCK_Pin|IOT_OUTPUT_1_Pin|IOT_OUTPUT_2_Pin|SD_MOSI_Pin 
+                          |ESP8266_RST_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : IOT_OUTPUT_5_Pin IOT_OUTPUT_6_Pin IOT_OUTPUT_7_Pin */
-  GPIO_InitStruct.Pin = IOT_OUTPUT_5_Pin|IOT_OUTPUT_6_Pin|IOT_OUTPUT_7_Pin;
+  /*Configure GPIO pin : SD_MISO_Pin */
+  GPIO_InitStruct.Pin = SD_MISO_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(SD_MISO_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pins : IOT_OUTPUT_5_Pin IOT_OUTPUT_3_Pin IOT_OUTPUT_4_Pin */
+  GPIO_InitStruct.Pin = IOT_OUTPUT_5_Pin|IOT_OUTPUT_3_Pin|IOT_OUTPUT_4_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;

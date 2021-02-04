@@ -36,7 +36,6 @@ extern "C" {
 #include <stdlib.h>
 #include <stdio.h>
 #include "LCD_Driver.h"
-#include "GUI.h"
 #include "bmp280.h"
 #include "illuminanceMeas.h"
 #include "DHT11.h"
@@ -49,9 +48,8 @@ extern "C" {
 
 /* Exported constants --------------------------------------------------------*/
 /* USER CODE BEGIN EC */
-extern SPI_HandleTypeDef hspi1;
-extern SPI_HandleTypeDef hspi2;
 extern I2C_HandleTypeDef hi2c1;
+extern uint8_t AppMode;
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -69,30 +67,38 @@ void delay_us(uint32_t i);
 /* Private defines -----------------------------------------------------------*/
 #define LED_TEST_Pin GPIO_PIN_13
 #define LED_TEST_GPIO_Port GPIOC
-#define SPI1_CS_Pin GPIO_PIN_0
-#define SPI1_CS_GPIO_Port GPIOB
+#define LCD_SCK_Pin GPIO_PIN_5
+#define LCD_SCK_GPIO_Port GPIOA
+#define LCD_DIN_Pin GPIO_PIN_7
+#define LCD_DIN_GPIO_Port GPIOA
+#define LCD_CE_Pin GPIO_PIN_0
+#define LCD_CE_GPIO_Port GPIOB
 #define LCD_RST_Pin GPIO_PIN_1
 #define LCD_RST_GPIO_Port GPIOB
 #define LCD_DC_Pin GPIO_PIN_2
 #define LCD_DC_GPIO_Port GPIOB
+#define SD_SCK_Pin GPIO_PIN_10
+#define SD_SCK_GPIO_Port GPIOB
 #define IOT_OUTPUT_1_Pin GPIO_PIN_12
 #define IOT_OUTPUT_1_GPIO_Port GPIOB
 #define IOT_OUTPUT_2_Pin GPIO_PIN_13
 #define IOT_OUTPUT_2_GPIO_Port GPIOB
-#define IOT_OUTPUT_3_Pin GPIO_PIN_14
-#define IOT_OUTPUT_3_GPIO_Port GPIOB
-#define IOT_OUTPUT_4_Pin GPIO_PIN_15
-#define IOT_OUTPUT_4_GPIO_Port GPIOB
+#define SD_MISO_Pin GPIO_PIN_14
+#define SD_MISO_GPIO_Port GPIOB
+#define SD_MOSI_Pin GPIO_PIN_15
+#define SD_MOSI_GPIO_Port GPIOB
 #define IOT_OUTPUT_5_Pin GPIO_PIN_8
 #define IOT_OUTPUT_5_GPIO_Port GPIOA
-#define IOT_OUTPUT_6_Pin GPIO_PIN_11
-#define IOT_OUTPUT_6_GPIO_Port GPIOA
-#define IOT_OUTPUT_7_Pin GPIO_PIN_12
-#define IOT_OUTPUT_7_GPIO_Port GPIOA
+#define IOT_OUTPUT_3_Pin GPIO_PIN_11
+#define IOT_OUTPUT_3_GPIO_Port GPIOA
+#define IOT_OUTPUT_4_Pin GPIO_PIN_12
+#define IOT_OUTPUT_4_GPIO_Port GPIOA
 #define DHT11_PORT_Pin GPIO_PIN_4
 #define DHT11_PORT_GPIO_Port GPIOB
 #define ESP8266_RST_Pin GPIO_PIN_5
 #define ESP8266_RST_GPIO_Port GPIOB
+#define SD_CS_Pin GPIO_PIN_9
+#define SD_CS_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
