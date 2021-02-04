@@ -10,17 +10,18 @@ import requests
 
 time_out_setting:int=120
 listen_port:int=10010
+uploadKey='7355608'
 
 def SendMail(title:str,message:str):
     # 第三方 SMTP 服务
     #Thanks to runoob
     mail_host="smtp.qq.com"  #设置服务器
-    mail_user="Use Your Own@qq.com"    #用户名
-    mail_pass="Use Your Own"   #口令 
+    mail_user="2524395907@qq.com"    #用户名
+    mail_pass="ktzlliytwsgmdiaj"   #口令 
     
     
-    sender = 'Use Your Own@qq.com'
-    receivers = ['Use Your Own@qq.com']  # 接收邮件，可设置为你的QQ邮箱或者其他邮箱
+    sender = '2524395907@qq.com'
+    receivers = ['2524395907@qq.com']  # 接收邮件，可设置为你的QQ邮箱或者其他邮箱
 
     htmlfile=open('mail.html','r',encoding='utf-8')
     htmldata=htmlfile.read()
@@ -31,9 +32,9 @@ def SendMail(title:str,message:str):
     mail_msg = htmldata
     message = MIMEText(mail_msg, 'html', 'utf-8')
     message['From'] = Header("服务器数据上报接口", 'utf-8')
-    message['To'] =  Header("不在位警告", 'utf-8')
+    message['To'] =  Header("管理员", 'utf-8')
     
-    subject = 'IOT终端不在位警告'
+    subject = 'IntelliSw - 错误报告'
     message['Subject'] = Header(subject, 'utf-8')
     try:
         smtpObj = smtplib.SMTP_SSL(host=mail_host) 
@@ -63,7 +64,7 @@ def UploadToHttp(iotdata):
     print("服务器返回：",totellback)
     return totellback.encode('utf-8')"""
     headers={"User-Agent":"app/iot-uploader","Connection":"close"}
-    kw={"c":"iotrpt %s %s %s %s"%(iotdata[0],iotdata[1],iotdata[2],iotdata[3])}
+    kw={"c":"iotrpt %s %s %s %s"%(iotdata[0],iotdata[1],iotdata[2],iotdata[3]),"pwd":uploadKey}
     response=requests.get("http://127.0.0.1:8000/command/",headers=headers,params=kw)
     totellback="$%s#"%(response.text.split('\r\n')[1].replace('saved.',''))
     print("回传给IOT终端：",totellback)
@@ -84,13 +85,18 @@ class Listening(threading.Thread):
         global iot_socket
         while(True):
             try:
-                self.mysocket.settimeout(time_out_setting)
-                recv_data=self.mysocket.recv(1024)
+                recv_data=self.mysocket.recv(2048)
                 iotdata=recv_data.decode('utf-8')
                 if iotdata[0]=='$':
+                    粘包分段尝试=iotdata.split('#')
+                    if 粘包分段尝试.__len__()>2:
+                        print(iotdata)
+                        print("MCU发送的数据包粘包")
+                        iotdata=粘包分段尝试[0]+'#'
                     #$25.14:47:101443.33:83.3#
-                    print("%s 接收到IOT传来数据:%s"%(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),iotdata))
+                    print("%s 接收到MCU传来数据:%s"%(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),iotdata))
                     iot_socket=self.mysocket
+                    self.mysocket.settimeout(time_out_setting)
                     iotdata=iotdata.replace('$','').replace('#','')
                     datas=iotdata.split(':')
                     datas[2]="%.2f"%(float(datas[2])/100)
@@ -100,24 +106,28 @@ class Listening(threading.Thread):
                     self.mysocket.send(totellback)
                     time.sleep(1)
                     if self.has_sync==False:
+                        requests.get('http://127.0.0.1:8000/iotgo/')
                         requests.get('http://127.0.0.1:8000/iotsync/')
                         self.has_sync=True
                 elif iotdata[0]=='^':
                     print("%s 接收到本地服务器传来数据:%s"%(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),iotdata))
-                    iotdata=iotdata.replace('^','$')
+                    #iotdata=iotdata.replace('^','$')
+                    templist=list(iotdata)
+                    templist[0]='$'
+                    iotdata=''.join(templist)
                     if iot_socket!=None:
                         print(iotdata)
                         iot_socket.send(iotdata.encode('utf-8'))
-                        print("已将本地服务器要求转发IOT")
+                        print("已将本地服务器要求转发MCU")
                     else:
                         print("尚未获取到IOT_SOCKET")
                     self.mysocket.close()
                     return
             except Exception as e:
                 if str(e)=='timed out':
-                    print("IOT终端超时，未及时上传数据，将断开连接并发送邮件上报。")
+                    print("=========MCU连接超时，未及时上传数据，将断开连接并发送邮件上报。")
                     self.mysocket.close()
-                    SendMail('IOT终端不在位警告','等待了%ds后，位于服务器的数据上报接口仍未收到来自IOT终端的心跳数据包。我们判定此终端已丢失连接。请立刻检查IOT终端，并恢复连接。'%time_out_setting)
+                    SendMail('IntelliSw-MCU不在位警告','等待了%ds后，位于服务器的数据上报接口仍未收到来自MCU的心跳数据包。我们判定此终端已丢失连接。请立刻检查MCU电路，并恢复连接。'%time_out_setting)
                     iot_socket=None
                     return
                 else:
@@ -126,8 +136,8 @@ class Listening(threading.Thread):
                     self.mysocket.close()
                     if iot_socket is self.mysocket:
                         iot_socket=None
-                        print("IOT终端SOCKET释放，失去与IOT终端的连接。发送邮件上报事故。")
-                        SendMail('IOT终端丢失连接错误','IOT终端意外地丢失了与服务器建立的长连接。这并非程序所刻意设计或料想的。可能是ESP8266模块或STM32单片机问题。按照程序逻辑，检测到丢失连接后会触发看门狗立刻复位。请即刻检查IOT终端并完成维护工作。')
+                        print("===========MCU终端SOCKET释放，失去与MCU的连接。发送邮件上报事故。")
+                        SendMail('IntelliSw-MCU丢失连接错误','MCU终端意外地丢失了与服务器建立的长连接。这并非程序所刻意设计或料想的。可能是ESP8266模块或STM32单片机问题。按照程序逻辑，检测到丢失连接后会触发看门狗立刻复位。请即刻检查MCU并完成维护工作。')
                     return
 
 
@@ -141,8 +151,7 @@ while(True):
     client_socket,client_addr=serversocket.accept()
     listener=Listening(client_socket,client_addr)
     listener.start()
-    print(client_addr,"已接入服务。")
-    requests.get('http://127.0.0.1:8000/iotgo/')
+    print(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),client_addr,"连接了服务器。")
 
 
 

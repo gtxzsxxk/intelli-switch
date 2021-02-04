@@ -1,8 +1,9 @@
 from django.db.models.lookups import IsNull
 from django.db.models.query import QuerySet
 from django.shortcuts import render,HttpResponse
-from WebView.models import ServerInfo,SampleData,DeviceControl
+from WebView.models import ServerInfo,SampleData,DeviceControl, UserApp
 from django.utils import timezone
+import django.http.request
 import datetime
 import time
 from hashlib import md5
@@ -11,7 +12,8 @@ import json
 
 # Create your views here.
 
-availablePin=['Use Your Own']
+availablePin=['用你自己的'] #用户身份验证时输入的密码
+uploadKey='用你自己的' #IOT-UPLOADER上报数据给数据库或其他APP上报数据给MCU时需要输入的key
 
 def get_client_ip(request):
     x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
@@ -26,8 +28,13 @@ def IphIDE(ip):
     print(source)
     return "%s.***.%s.***"%(source[0],source[2])
 
+def IpOnlyOne(ip):
+    source=ip.split('.')
+    print(source)
+    return source[0]
+
 def getDeviceMD5(request,pin):
-    ua=str(request.META["HTTP_USER_AGENT"]+get_client_ip(request))
+    ua=str(request.META["HTTP_USER_AGENT"]+IpOnlyOne(get_client_ip(request)))
     md5code=md5(ua.encode('UTF-8')).hexdigest()+md5((ua+pin).encode('UTF-8')).hexdigest()
     return md5code
 
@@ -55,7 +62,7 @@ def getDeviceStatus(deviceStatus,value):
     else:
         raise Exception("未知的状态",value)
 
-def IndexPage(request):
+def IndexView(request):
     context={}
     serverinfoObj=ServerInfo.objects.all()[0]
     dnow=datetime.datetime.now()
@@ -81,20 +88,20 @@ def IndexPage(request):
         deviceauth="当前设备已获权，用户指纹："+request.COOKIES['device_auth'][0:8]
         context['authstatus']="已获得设备访问权限"
     #lastestData.report_time.strftime("%Y-%m-%d %H:%M:%S")
-    context['serverinfo']=("%s；服务器（%s）；公网IP：%s；内网IP：%s；正常运行时间：%s 分钟；总数据包：%d；数据更新时间：%s秒前"%\
+    context['serverinfo']=("%s；服务器（%s）；公网IP：%s；内网IP：%s；正常运行时间：%s 分钟；总数据包：%d 占用空间：%.2fKb；数据更新时间：<span id='reftime'>%s</span>秒前"%\
         (deviceauth,serverinfoObj.servername,IphIDE(get_client_ip(request)),serverinfoObj.localIp,deltaTime,alldata.__len__(),\
-            updateDeltaTime)).replace("；","<br />")
+            alldata.__len__()*0.068,updateDeltaTime)).replace("；","<br />")
         
     context['temperature']="%.1f"%lastestData.temperature
     context['humidity']=int(lastestData.humidity)
     context['atmospressure']=int(lastestData.atmospressure)
     context['illuminance']="%.1f"%lastestData.illuminance
-    context['serverStatus']='ACTIVE(RUNNING)'
+    context['serverStatus']='<span class="statusSpan" >●&nbsp;RUNNING</span>'
     disabled=''
     if (dnow-lastestData.report_time).total_seconds()>120:
-        context['serverStatus']='NORESPONSE'
-        context['towarn']='Warn'
+        context['serverStatus']='<span class="statusSpanWarn" >○&nbsp;ABORTED</span>'
         disabled='disabled'
+        
 
     dev_template="<div class=\"controlBox\"><span style=\"float:left;line-height:30px;font-weight:700\" onclick='Talert(\"+++Description+++\")'><i class=\"fa fa-cogs fa-1x\" style=\"margin-right:5px\"></i> +++name+++ </span><input type=\"button\" id=\"devbtn+++deviceid+++\" class=\"btn btn-danger\" style=\"float:right;width:53px\" onclick=\"device_ctl(+++deviceid+++,'switch')\" value=\"+++status+++\" "+disabled+"></div>"
     #Devices
@@ -108,7 +115,12 @@ def IndexPage(request):
         totalTemplate=totalTemplate+template
     
     context['devicecontrols']=totalTemplate
+    jsonObj=json.dumps(context)
+    return HttpResponse(jsonObj)
 
+
+def IndexPage(request):
+    context={}
     return render(request,"index.html",context)
 
 """
@@ -121,7 +133,7 @@ logout
 """
 
 def IotSend(tosend):
-    time.sleep(1.5)
+    time.sleep(0.8)
     try:
         mysock=socket.socket(socket.AF_INET,socket.SOCK_STREAM)
         mysock.connect(('127.0.0.1',10010))
@@ -130,6 +142,13 @@ def IotSend(tosend):
         mysock.close()
     except Exception as e:
         print("无法上传至本地数据上报接口。",e)
+
+def getAppKey(request:django.http.request):
+    appid=request.GET.get('appid')
+    target:UserApp=UserApp.objects.get(appid=int(appid))
+    if target!=None:
+        return target.app_key
+    return "NO SUCH A APP"
 
 def commandExec(request):
     ucmd=request.GET.get('c')
@@ -180,7 +199,7 @@ def commandExec(request):
         GET /command/?c=iotrpt+13.0+79+1013+212 HTTP/1.1
         User-Agent: app/iotserver
         """
-        if paras.__len__()==5:
+        if paras.__len__()==5 and request.GET.get('pwd')==uploadKey:
             smp=SampleData(temperature=float(paras[1]),humidity=float(paras[2]),\
                 atmospressure=float(paras[3]),illuminance=float(paras[4]),\
                     report_time=datetime.datetime.now())
@@ -189,7 +208,7 @@ def commandExec(request):
         elif paras.__len__()==6:
             pass
         else:
-            response.write('errs:can\'t resolve command.')
+            response.write('errs:can\'t resolve command or error upload key.')
     elif paras[0]=='iot-reset':
         if not HasAuth(request):
             response.write("\r\nerrs:您没有权限执行此命令。")
@@ -217,6 +236,23 @@ def commandExec(request):
         else:
             iotSync(request)
             response.write("\r\n设备已同步。")
+        
+    elif paras[0]=='appscrupd':
+        """
+        APP HTTP请求参数：apikey=API key，scrdata=屏幕数据，appid=APPID，c=appscrupd
+        """
+        if not request.GET.get('apikey')==getAppKey(request):
+            response.write("\r\nerrs:APP没有权限访问设备。")
+        else:
+            scrdata=request.GET.get('scrdata')
+            IotSend('^AP%s#'%scrdata)
+            response.write("\r\n已将屏幕刷新数据写入。")
+    elif paras[0]=='appexit':
+        if not request.GET.get('apikey')==getAppKey(request):
+            response.write("\r\nerrs:APP没有权限访问设备。")
+        else:
+            IotSend('^EA#')
+            response.write("\r\n已丢失屏幕控制权。")
     else:
         response.write("\r\n无法识别输入的指令。")
     return response
@@ -228,7 +264,10 @@ def GetTemp(request):
     start_time=datetime.datetime(year=int(dateData[0]),month=int(dateData[1]),day=int(dateData[2]),\
         hour=0,minute=0,second=0)
 
-    today_data:QuerySet=SampleData.objects.filter(report_time__gt=start_time)
+    end_time=datetime.datetime(year=int(dateData[0]),month=int(dateData[1]),day=int(dateData[2]),\
+    hour=23,minute=59,second=59)
+
+    today_data:QuerySet=SampleData.objects.filter(report_time__range=(start_time,end_time))
     averageData=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
     cntData=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
     for i in today_data:
@@ -250,8 +289,10 @@ def GetPress(request):
 
     start_time=datetime.datetime(year=int(dateData[0]),month=int(dateData[1]),day=int(dateData[2]),\
         hour=0,minute=0,second=0)
+    end_time=datetime.datetime(year=int(dateData[0]),month=int(dateData[1]),day=int(dateData[2]),\
+        hour=23,minute=59,second=59)
 
-    today_data:QuerySet=SampleData.objects.filter(report_time__gt=start_time)
+    today_data:QuerySet=SampleData.objects.filter(report_time__range=(start_time,end_time))
     averageData=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
     cntData=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
     for i in today_data:
@@ -274,7 +315,10 @@ def GetIllu(request):
     start_time=datetime.datetime(year=int(dateData[0]),month=int(dateData[1]),day=int(dateData[2]),\
         hour=0,minute=0,second=0)
 
-    today_data:QuerySet=SampleData.objects.filter(report_time__gt=start_time)
+    end_time=datetime.datetime(year=int(dateData[0]),month=int(dateData[1]),day=int(dateData[2]),\
+    hour=23,minute=59,second=59)
+
+    today_data:QuerySet=SampleData.objects.filter(report_time__range=(start_time,end_time))
     averageData=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
     cntData=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
     for i in today_data:
@@ -301,4 +345,10 @@ def iotSync(request):
     for i in devices:
         tosend='^ch%d:%s#'%(i.deviceId,i.deviceStatus)
         IotSend(tosend)
-    pass
+    return HttpResponse("Has Sync.")
+
+def appConfPage(request):
+    context={'applist':UserApp.objects.all()}
+    context['guiData']=ServerInfo.objects.all()[0]
+    
+    return render(request,"app_conf.html",context)

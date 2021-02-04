@@ -20,6 +20,8 @@ from WebView import views
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('',views.IndexPage),
+    path('app_conf/',views.appConfPage),
+    path('view/',views.IndexView),
     path('command/',views.commandExec),
     path('temp/',views.GetTemp),
     path('press/',views.GetPress),
