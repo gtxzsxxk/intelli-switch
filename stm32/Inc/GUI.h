@@ -1,3 +1,5 @@
+#ifndef GUIHEAD
+#define GUIHEAD
 #include "main.h"
 #include "LCD_Driver.h"
 
@@ -14,3 +16,4 @@ void l_print(uint8_t* dat,uint8_t line);
 
 //ÊıÂë¹Ü×ÖÌå  %  ¡æ
 //const unsigned char sz32[];
+#endif

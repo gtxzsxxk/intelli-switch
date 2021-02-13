@@ -36,6 +36,7 @@ extern "C" {
 #include <stdlib.h>
 #include <stdio.h>
 #include "LCD_Driver.h"
+#include "esp8266_Driver.h"
 #include "bmp280.h"
 #include "illuminanceMeas.h"
 #include "DHT11.h"
@@ -50,6 +51,15 @@ extern "C" {
 /* USER CODE BEGIN EC */
 extern I2C_HandleTypeDef hi2c1;
 extern uint8_t AppMode;
+extern RTC_TimeTypeDef now_Time;
+extern RTC_TimeTypeDef server_Time;
+extern UART_HandleTypeDef huart1;
+extern UART_HandleTypeDef huart2;
+extern TIM_HandleTypeDef htim3;
+void HOME_SCREEN(void);
+
+void FlashRead(void);
+void FlashWrite(void);
 /* USER CODE END EC */
 
 /* Exported macro ------------------------------------------------------------*/
@@ -77,16 +87,10 @@ void delay_us(uint32_t i);
 #define LCD_RST_GPIO_Port GPIOB
 #define LCD_DC_Pin GPIO_PIN_2
 #define LCD_DC_GPIO_Port GPIOB
-#define SD_SCK_Pin GPIO_PIN_10
-#define SD_SCK_GPIO_Port GPIOB
 #define IOT_OUTPUT_1_Pin GPIO_PIN_12
 #define IOT_OUTPUT_1_GPIO_Port GPIOB
 #define IOT_OUTPUT_2_Pin GPIO_PIN_13
 #define IOT_OUTPUT_2_GPIO_Port GPIOB
-#define SD_MISO_Pin GPIO_PIN_14
-#define SD_MISO_GPIO_Port GPIOB
-#define SD_MOSI_Pin GPIO_PIN_15
-#define SD_MOSI_GPIO_Port GPIOB
 #define IOT_OUTPUT_5_Pin GPIO_PIN_8
 #define IOT_OUTPUT_5_GPIO_Port GPIOA
 #define IOT_OUTPUT_3_Pin GPIO_PIN_11
@@ -97,8 +101,8 @@ void delay_us(uint32_t i);
 #define DHT11_PORT_GPIO_Port GPIOB
 #define ESP8266_RST_Pin GPIO_PIN_5
 #define ESP8266_RST_GPIO_Port GPIOB
-#define SD_CS_Pin GPIO_PIN_9
-#define SD_CS_GPIO_Port GPIOB
+#define Netconf_Pin GPIO_PIN_9
+#define Netconf_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */

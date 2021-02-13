@@ -1,3 +1,6 @@
+#ifndef BMP_280_H_
+#define BMP_280_H_
+
 #include "main.h"
 #define BMP280_ADDR 0xEC //Ïò×ó¶ÔÆë
 
@@ -50,3 +53,5 @@ uint8_t bmp280_Read(uint8_t addr);
 void bmp280_Write(uint8_t addr,uint8_t dat);
 void bmp280_getTemperature(void);
 void bmp280_getAtmosPressure(void);
+
+#endif

@@ -1,11 +1,19 @@
-# Instruction to STM32 code
-+ This Code Is Running On STM32F401CCU6.You can buy it on Taobao.
-+ This is the basic STM32CUBEMX project files.Attention.I have deleted all innecessary driver files such as timer driver and usart driver.But I keep all the module drivers for the
-followings.
-    - ESP8266(The Wifi module)
-    - BMP280(Temperature and Atmosphere Pressure Sensor)
-    - DHT11(Temperature and Humidity Sensor) 
-    - BF1750(Digital Lightness Sensor)
+# IntelliSw固件源代码
 
-## TODO:I will upload my wire design on a bread board sonner or later.
-This MARKDOWN document may no longer be updated.I have migrated it to the readme.md in the root.
+## 新加esp8266_Driver.c，提供ESP8266 AT指令库。简单配置后可做为5并发的HTTP服务器，可以实现简单的路由，提供静态页面访问以及GET请求处理
+
+## 新加Wi-Fi配网功能，上电自动检测IO口电平，选择进入正常或配网模式
+
+## 修复LCD显示bug，多行显示会漏字符
+
+### 配网步骤
+
+- 将设置的IO口拉低，上电
+- 连接AP：intellisw，密码默认为123456789
+- 访问192.168.4.1，配置SSID,Password,Server IP,Port
+- 将IO口拉高，复位，进入正常模式
+
+### 配网页面HTML模板：mcu_conf.html
+
+> 最后更新于2月13日。这个项目进入生产模式已经15天，出现过几次掉线，但也自动重连成功。迫于升学压力，可能这是我最后一次维护这个项目，得益于多多思考了整个系统的架构，项目还算稳定。不打算再动这个项目太多，简单的小bug会修复。感谢自己的支持。
+> zhy

@@ -20,7 +20,6 @@
 
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "fatfs.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -48,9 +47,11 @@ IWDG_HandleTypeDef hiwdg;
 
 RTC_HandleTypeDef hrtc;
 
+TIM_HandleTypeDef htim3;
 TIM_HandleTypeDef htim4;
 
 UART_HandleTypeDef huart1;
+UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
 
@@ -64,6 +65,8 @@ static void MX_I2C1_Init(void);
 static void MX_RTC_Init(void);
 static void MX_TIM4_Init(void);
 static void MX_IWDG_Init(void);
+static void MX_USART2_UART_Init(void);
+static void MX_TIM3_Init(void);
 /* USER CODE BEGIN PFP */
 
 #define PULSE_TIME_MS 100
@@ -73,11 +76,7 @@ static void MX_IWDG_Init(void);
 #define NETWORK_UPDATE_TICK (uint16_t)((45)*(1000/PULSE_TIME_MS))
 #define DHT11_UPDATE_TICK (uint16_t)((0.8)*(1000/PULSE_TIME_MS))
 #define LED_UPDATE_TICK (uint16_t)((0.5)*(1000/PULSE_TIME_MS))
-//#define USE_FILESYSTEM
-
-#ifdef USE_FILESYSTEM
-#include "fatfs.h"
-#endif
+#define ESP_DEBUG
 
 /* USER CODE END PFP */
 
@@ -85,6 +84,7 @@ static void MX_IWDG_Init(void);
 /* USER CODE BEGIN 0 */
 uint16_t debug=0;
 uint16_t counter;
+uint8_t ESP8266_STATUS=0;
 void delay_us(uint32_t i)
 {
   counter=i&0xffff;
@@ -99,13 +99,59 @@ void delay_us(uint32_t i)
 void HOME_SCREEN(void)
 {
 	LCD_Clean();
-	l_print("IntelliSw",0,Middle);
+	if(ESP8266_STATUS==1)
+		l_print("IntelliSw",0,Middle);
+	else if(ESP8266_STATUS==0)
+		l_print("Fail To Trans",0,Middle);
+	else if(ESP8266_STATUS==2)
+		l_print("RECONF NETWORK",0,Middle);
+	else if(ESP8266_STATUS==3)
+		l_print("NoLinkToServer",0,Middle);
 	l_print("Wek HH:mm:ss",1,Middle);
 	l_print("TEMP:",2,Left);
 	l_print("QNH:",3,Left);
 	l_print("ILLU:",4,Left);
 	l_print("HUMI:",5,Left);
 }
+
+#define SSID_ADDR 0x08020000
+
+void FlashRead(void)
+{
+	__IO uint8_t* temp=(__IO uint8_t*)(SSID_ADDR);
+	memset(ESP_SSID,0,sizeof(ESP_SSID));
+	memset(ESP_PASSWD,0,sizeof(ESP_PASSWD));
+	memset(ESP_TCP_IPADDR,0,sizeof(ESP_TCP_IPADDR));
+	memset(ESP_TCP_PORT,0,sizeof(ESP_TCP_PORT));
+	
+	memcpy(ESP_SSID,(uint8_t*)temp,16);
+	memcpy(ESP_PASSWD,(uint8_t*)(temp+16),20);
+	memcpy(ESP_TCP_IPADDR,(uint8_t*)(temp+16+20),20);
+	memcpy(ESP_TCP_PORT,(uint8_t*)(temp+16+20+20),8);
+}
+
+void FlashWrite(void)
+{
+	HAL_FLASH_Unlock();
+	FLASH_EraseInitTypeDef f={0};
+	f.TypeErase=FLASH_TYPEERASE_SECTORS;
+	f.VoltageRange=FLASH_VOLTAGE_RANGE_3;
+	f.Sector=FLASH_SECTOR_5;
+	f.NbSectors=1;
+	uint32_t error=0;
+	HAL_FLASHEx_Erase(&f,&error);
+	for(uint8_t i=0;i<16;i++)
+		HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE,SSID_ADDR+i,ESP_SSID[i]);
+	for(uint8_t i=0;i<20;i++)
+		HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE,SSID_ADDR+16+i,ESP_PASSWD[i]);
+	for(uint8_t i=0;i<20;i++)
+		HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE,SSID_ADDR+16+20+i,ESP_TCP_IPADDR[i]);
+	for(uint8_t i=0;i<8;i++)
+		HAL_FLASH_Program(FLASH_TYPEPROGRAM_BYTE,SSID_ADDR+16+20+20+i,ESP_TCP_PORT[i]);
+	
+	HAL_FLASH_Lock();
+}
+
 
 //format $24.71:52:1013.52:100.0
 uint8_t databuff[32];
@@ -114,12 +160,7 @@ void MakeData(void)
 {
 	memset(databuff,0,sizeof(databuff));
 	sprintf((char*)databuff,"$%.2f:%hhu:%.2f:%.1f#",bmp_280_temperature,DHT11_HUMIDITY,bmp_280_atmospressure,illuminance);
-	#ifdef USE_FILESYSTEM
-	char datrec[32];
-	memset(datrec,0,sizeof(datrec));
-	sprintf(datrec,"%.2f,%hhu,%.2f,%.1f\n",bmp_280_temperature,DHT11_HUMIDITY,bmp_280_atmospressure,illuminance);
-	FS_AppendFile("envlog.csv",datrec);
-	#endif
+	
 }
 
 uint8_t rev_cnt=0;
@@ -127,119 +168,42 @@ uint8_t display_esp=0;
 uint8_t LED_ON=1;
 uint8_t rev_char=0;
 uint8_t rev_buff[128];
+uint8_t rev_char_uart2=0;
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	if(huart->Instance==huart1.Instance)
 	{
-		if(rev_char=='$')
+		//#ifndef ESP_DEBUG
+		if(ESP8266_STATUS==1)
 		{
-			rev_buff[rev_cnt++]=rev_char;
+			if(rev_char=='$')
+			{
+				rev_buff[rev_cnt++]=rev_char;
+			}
+			else if(rev_char=='#')
+			{
+				display_esp=1;
+			}
+			else if(rev_buff[0]=='$')
+			{
+				rev_buff[rev_cnt++]=rev_char;
+			}
 		}
-		else if(rev_char=='#')
-		{
-			display_esp=1;
-		}
-		else if(rev_buff[0]=='$')
-		{
-			rev_buff[rev_cnt++]=rev_char;
-		}
+		//#else
+		//不对命令做任何解析 直接返回串口2
+		//HAL_UART_Transmit(&huart2,&rev_char,1,100);
+		//#endif
+		ESP_GETS(rev_char);
 		HAL_UART_Receive_IT(&huart1,&rev_char,1);
 	}
-}
-
-void ESP_SendAT(const char* dat)
-{
-	HAL_UART_Transmit(&huart1,(uint8_t*)dat,strlen(dat),100);
-	HAL_UART_Transmit(&huart1,(uint8_t*)"\r\n",2,100);
-}
-
-void ESP_SendData(uint8_t* dat)
-{
-	HAL_UART_Transmit(&huart1,dat,strlen((const char*)dat),1000);
-}
-
-void ESP_Reset(void)
-{
-	HAL_GPIO_WritePin(ESP8266_RST_GPIO_Port,ESP8266_RST_Pin,GPIO_PIN_RESET);
-	HAL_Delay(5);
-	HAL_GPIO_WritePin(ESP8266_RST_GPIO_Port,ESP8266_RST_Pin,GPIO_PIN_SET);
-}
-
-void ESP_Init(void)
-{
-	//AT+CWMODE=1
-	#ifdef USE_FILESYSTEM
-	char SSID[16];
-	char PASSWD[20];
-	char IPADDR[20];
-	char TCP_PORT[7];//65536
-	memset(SSID,0,sizeof(SSID));
-	memset(PASSWD,0,sizeof(PASSWD));
-	memset(IPADDR,0,sizeof(IPADDR));
-	memset(TCP_PORT,0,sizeof(TCP_PORT));
-	retUSER=f_open(&USERFile,"esp.txt",FA_OPEN_EXISTING|FA_READ);
-	
-	f_gets(SSID,sizeof(SSID),&USERFile);
-	f_gets(PASSWD,sizeof(PASSWD),&USERFile);
-	f_gets(IPADDR,sizeof(IPADDR),&USERFile);
-	f_gets(TCP_PORT,sizeof(TCP_PORT),&USERFile);
-	retUSER+=f_close(&USERFile);
-	if(retUSER)
+	else if(huart->Instance==huart2.Instance)
 	{
-		f_print("Fail to load filesys");
-		return;
+		HAL_UART_Transmit(&huart1,&rev_char_uart2,1,100);
+		HAL_UART_Receive_IT(&huart2,&rev_char_uart2,1);
 	}
-	SSID[strlen(SSID)-1]=0;
-	PASSWD[strlen(PASSWD)-1]=0;
-	IPADDR[strlen(IPADDR)-1]=0;
-	TCP_PORT[strlen(TCP_PORT)-1]=0;
-	#else
-	char SSID[16]="801";
-	char PASSWD[20]="bao32801";
-	char IPADDR[20]="129.204.224.55";
-	char TCP_PORT[8]="10010";//65536
-	#endif
-	
-	char AT_CWJAP[64];
-	char AT_CIPSTART[80];
-	memset(AT_CWJAP,0,sizeof(AT_CWJAP));
-	memset(AT_CIPSTART,0,sizeof(AT_CIPSTART));
-	
-	sprintf(AT_CWJAP,"AT+CWJAP=\"%s\",\"%s\"",SSID,PASSWD);
-	sprintf(AT_CIPSTART,"AT+CIPSTART=\"TCP\",\"%s\",%s",IPADDR,TCP_PORT);
-	
-	HAL_Delay(500);
-	ESP_SendAT("+++");
-	HAL_Delay(100);
-	ESP_Reset();
-	HAL_Delay(2500);
-	
-	f_print("NETWORK INIT");
-	ESP_SendAT("AT+CWMODE=1");
-	HAL_Delay(5);
-	ESP_SendAT("AT+SLEEP=2");
-	HAL_Delay(5);
-	ESP_SendAT(AT_CWJAP);
-	f_print("WIFICONNECTING");
-	HAL_Delay(12000);
-	ESP_SendAT("AT+CIFSR");
-	HAL_Delay(100);
-	ESP_SendAT("AT+CIPMUX=0");
-	f_print("WIFICONN--[OK]");
-	HAL_Delay(100);
-	ESP_SendAT("AT+CIPMODE=1");
-	HAL_Delay(100);
-	ESP_SendAT(AT_CIPSTART);
-	f_print("Connecting to Data Uploader");
-	HAL_Delay(5000);
-	ESP_SendAT("AT+CIPSEND");
-	f_print("MODESET---[OK]");
-	HAL_Delay(1000);
-	display_esp=0;
-	LCD_Clean();
-	
 }
+
 
 uint8_t rtc_time[14]="Wed 15:58:35";
 uint8_t week[3]="Wed";
@@ -270,20 +234,6 @@ void RTC_Update(void)
 }
 
 
-//ESP8266看门狗，若从服务器收到的时间更新信息120秒内没有更新，则判定ESP8266宕机，即复位ESP8266
-//ESP8266看门狗程序触发于Display_Time，时间更新函数
-void ESP8266_WatchDog(void)
-{
-	short deltaTime=0;
-	deltaTime=(now_Time.Hours-server_Time.Hours)*60*60+(now_Time.Minutes-server_Time.Minutes)*60
-		+(now_Time.Seconds-server_Time.Seconds);
-	if(deltaTime>120)
-	{
-		ESP_Reset();
-		ESP_Init();
-		HOME_SCREEN();
-	}
-}
 
 void Display_Time(void)
 {
@@ -448,7 +398,7 @@ void Data_Receive(void)
 		//$ERS#
 		ESP_SendAT("AT+RESTORE");
 		HAL_Delay(500);
-		ESP_Init();
+		ESP_ClientInit();
 		HOME_SCREEN();
 	}
 	else if(rev_buff[1]=='F'&&rev_buff[2]=='R'&&rev_buff[3]=='S')
@@ -462,10 +412,6 @@ void Data_Receive(void)
 		LCD_Init();
 		HOME_SCREEN();
 	}
-	#ifdef USE_FILESYSTEM
-	FS_LOG(timebuff);
-	FS_LOG((char*)rev_buff);
-	#endif
 }
 
 
@@ -473,6 +419,7 @@ void Data_Receive(void)
 volatile uint16_t sample_cnt=SAMPLE_UPDATE_TICK;
 volatile uint16_t dht11cnt=DHT11_UPDATE_TICK,ledcnt=LED_UPDATE_TICK;
 volatile uint16_t net_cnt=NETWORK_UPDATE_TICK;
+volatile uint8_t intellisw_mode;
 /* USER CODE END 0 */
 
 /**
@@ -508,19 +455,20 @@ int main(void)
   MX_I2C1_Init();
   MX_RTC_Init();
   MX_TIM4_Init();
-	#ifdef USE_FILESYSTEM
-  MX_FATFS_Init();
-	#endif
+  MX_USART2_UART_Init();
+  MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
 	HAL_UART_Receive_IT(&huart1,&rev_char,1);
-	HAL_Delay(800);
+	HAL_UART_Receive_IT(&huart2,&rev_char_uart2,1);
 	LCD_Init();
-	ESP_Init();
+	intellisw_mode=HAL_GPIO_ReadPin(Netconf_GPIO_Port,Netconf_Pin);
+	FlashRead();
+	if(intellisw_mode)
+		ESP8266_STATUS=ESP_ClientInit();
+	else
+		ESP_ServerInit();
 	bmp280_init();
 	HOME_SCREEN();
-	#ifdef USE_FILESYSTEM
-	FS_LOG("LOADED OK\r\n");
-	#endif
 	HAL_Delay(200);
 	//HomeScreen();
   /* USER CODE END 2 */
@@ -555,7 +503,7 @@ int main(void)
 		if(net_cnt>=NETWORK_UPDATE_TICK)
 		{
 			MakeData();
-			ESP_SendData(databuff);
+			ESP_SendData((char*)databuff);
 			net_cnt=0;
 		}
 		if(display_esp==1)
@@ -758,6 +706,51 @@ static void MX_RTC_Init(void)
 }
 
 /**
+  * @brief TIM3 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_TIM3_Init(void)
+{
+
+  /* USER CODE BEGIN TIM3_Init 0 */
+
+  /* USER CODE END TIM3_Init 0 */
+
+  TIM_ClockConfigTypeDef sClockSourceConfig = {0};
+  TIM_MasterConfigTypeDef sMasterConfig = {0};
+
+  /* USER CODE BEGIN TIM3_Init 1 */
+
+  /* USER CODE END TIM3_Init 1 */
+  htim3.Instance = TIM3;
+  htim3.Init.Prescaler = 25202-1;
+  htim3.Init.CounterMode = TIM_COUNTERMODE_DOWN;
+  htim3.Init.Period = 50000-1;
+  htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+  htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
+  if (HAL_TIM_Base_Init(&htim3) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sClockSourceConfig.ClockSource = TIM_CLOCKSOURCE_INTERNAL;
+  if (HAL_TIM_ConfigClockSource(&htim3, &sClockSourceConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  sMasterConfig.MasterOutputTrigger = TIM_TRGO_RESET;
+  sMasterConfig.MasterSlaveMode = TIM_MASTERSLAVEMODE_DISABLE;
+  if (HAL_TIMEx_MasterConfigSynchronization(&htim3, &sMasterConfig) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN TIM3_Init 2 */
+
+  /* USER CODE END TIM3_Init 2 */
+
+}
+
+/**
   * @brief TIM4 Initialization Function
   * @param None
   * @retval None
@@ -818,7 +811,7 @@ static void MX_USART1_UART_Init(void)
 
   /* USER CODE END USART1_Init 1 */
   huart1.Instance = USART1;
-  huart1.Init.BaudRate = 115200;
+  huart1.Init.BaudRate = 19200;
   huart1.Init.WordLength = UART_WORDLENGTH_8B;
   huart1.Init.StopBits = UART_STOPBITS_1;
   huart1.Init.Parity = UART_PARITY_NONE;
@@ -832,6 +825,39 @@ static void MX_USART1_UART_Init(void)
   /* USER CODE BEGIN USART1_Init 2 */
 
   /* USER CODE END USART1_Init 2 */
+
+}
+
+/**
+  * @brief USART2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART2_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART2_Init 0 */
+
+  /* USER CODE END USART2_Init 0 */
+
+  /* USER CODE BEGIN USART2_Init 1 */
+
+  /* USER CODE END USART2_Init 1 */
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 115200;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART2_Init 2 */
+
+  /* USER CODE END USART2_Init 2 */
 
 }
 
@@ -858,11 +884,11 @@ static void MX_GPIO_Init(void)
                           |IOT_OUTPUT_4_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, LCD_CE_Pin|LCD_RST_Pin|LCD_DC_Pin|SD_SCK_Pin 
-                          |IOT_OUTPUT_1_Pin|SD_MOSI_Pin|DHT11_PORT_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(GPIOB, LCD_CE_Pin|LCD_RST_Pin|LCD_DC_Pin|IOT_OUTPUT_1_Pin 
+                          |DHT11_PORT_Pin, GPIO_PIN_RESET);
 
   /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOB, IOT_OUTPUT_2_Pin|ESP8266_RST_Pin|SD_CS_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(GPIOB, IOT_OUTPUT_2_Pin|ESP8266_RST_Pin, GPIO_PIN_SET);
 
   /*Configure GPIO pin : LED_TEST_Pin */
   GPIO_InitStruct.Pin = LED_TEST_Pin;
@@ -878,27 +904,19 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : LCD_CE_Pin LCD_RST_Pin LCD_DC_Pin SD_CS_Pin */
-  GPIO_InitStruct.Pin = LCD_CE_Pin|LCD_RST_Pin|LCD_DC_Pin|SD_CS_Pin;
+  /*Configure GPIO pins : LCD_CE_Pin LCD_RST_Pin LCD_DC_Pin */
+  GPIO_InitStruct.Pin = LCD_CE_Pin|LCD_RST_Pin|LCD_DC_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pins : SD_SCK_Pin IOT_OUTPUT_1_Pin IOT_OUTPUT_2_Pin SD_MOSI_Pin 
-                           ESP8266_RST_Pin */
-  GPIO_InitStruct.Pin = SD_SCK_Pin|IOT_OUTPUT_1_Pin|IOT_OUTPUT_2_Pin|SD_MOSI_Pin 
-                          |ESP8266_RST_Pin;
+  /*Configure GPIO pins : IOT_OUTPUT_1_Pin IOT_OUTPUT_2_Pin ESP8266_RST_Pin */
+  GPIO_InitStruct.Pin = IOT_OUTPUT_1_Pin|IOT_OUTPUT_2_Pin|ESP8266_RST_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
-
-  /*Configure GPIO pin : SD_MISO_Pin */
-  GPIO_InitStruct.Pin = SD_MISO_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  HAL_GPIO_Init(SD_MISO_GPIO_Port, &GPIO_InitStruct);
 
   /*Configure GPIO pins : IOT_OUTPUT_5_Pin IOT_OUTPUT_3_Pin IOT_OUTPUT_4_Pin */
   GPIO_InitStruct.Pin = IOT_OUTPUT_5_Pin|IOT_OUTPUT_3_Pin|IOT_OUTPUT_4_Pin;
@@ -913,6 +931,12 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Pull = GPIO_NOPULL;
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
   HAL_GPIO_Init(DHT11_PORT_GPIO_Port, &GPIO_InitStruct);
+
+  /*Configure GPIO pin : Netconf_Pin */
+  GPIO_InitStruct.Pin = Netconf_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(Netconf_GPIO_Port, &GPIO_InitStruct);
 
 }
 
@@ -936,8 +960,13 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
   if (htim->Instance == TIM1) {
     HAL_IncTick();
   }
+	
   /* USER CODE BEGIN Callback 1 */
-
+	else if(htim->Instance==htim3.Instance)
+	{
+		//ESP_REV_FLAG=1;
+		HAL_TIM_Base_Stop_IT(&htim3);
+	}
   /* USER CODE END Callback 1 */
 }
 

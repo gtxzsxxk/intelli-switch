@@ -1,43 +1,38 @@
-//////////////////////////////////////////////////////////////////////////////////	 
-//本程序只供学习使用，未经作者许可，不得用于其它任何用途
-//  功能描述   : 1.8寸LCD 4接口演示例程(STM32系列)
-/******************************************************************************
-//本程序适用与STM32F103C8
-//              GND   电源地
-//              VCC   接5V或3.3v电源
-//              SCL   接PA5（SCL）
-//              SDA   接PA7（SDA）
-//              RES   接PB0
-//              DC    接PB1
-//              CS    接PA4 
-//							BL		接PB10
-*******************************************************************************/
-
+#ifndef LCD5110_H_
+#define LCD5110_H_
 #include "main.h"
+#define SCE_H HAL_GPIO_WritePin(LCD_CE_GPIO_Port,LCD_CE_Pin,GPIO_PIN_SET)
+#define SCE_L HAL_GPIO_WritePin(LCD_CE_GPIO_Port,LCD_CE_Pin,GPIO_PIN_RESET)
 
-#define RED  	0xf800
-#define GREEN	0x07e0
-#define BLUE 	0x001f
-#define WHITE	0xffff
-#define BLACK	0x0000
-#define YELLOW  0xFFE0
-#define GRAY0   0xEF7D   	//灰色0 3165 00110 001011 00101
-#define GRAY1   0x8410      	//灰色1      00000 000000 00000
-#define GRAY2   0x4208      	//灰色2  1111111111011111
-#define LightSeaGreen 0x4595
+#define DC_H HAL_GPIO_WritePin(LCD_DC_GPIO_Port,LCD_DC_Pin,GPIO_PIN_SET)
+#define DC_L HAL_GPIO_WritePin(LCD_DC_GPIO_Port,LCD_DC_Pin,GPIO_PIN_RESET)
 
-#define X_MAX_PIXEL	        128
-#define Y_MAX_PIXEL	        160
+#define RST_H HAL_GPIO_WritePin(LCD_RST_GPIO_Port,LCD_RST_Pin,GPIO_PIN_SET)
+#define RST_L HAL_GPIO_WritePin(LCD_RST_GPIO_Port,LCD_RST_Pin,GPIO_PIN_RESET)
 
-void Lcd_WriteIndex(uint8_t Index);
-void Lcd_WriteData(uint8_t Data);
-void Lcd_WriteReg(uint8_t Index,uint8_t Data);
-uint16_t Lcd_ReadReg(uint8_t LCD_Reg);
-void Lcd_Reset(void);
-void Lcd_Init(void);
-void Lcd_Clear(uint16_t Color);
-void Lcd_SetXY(uint16_t x,uint16_t y);
-void Gui_DrawPoint(uint16_t x,uint16_t y,uint16_t Data);
-unsigned int Lcd_ReadPoint(uint16_t x,uint16_t y);
-void Lcd_SetRegion(uint16_t x_start,uint16_t y_start,uint16_t x_end,uint16_t y_end);
-void LCD_WriteData_16Bit(uint16_t Data);
+#define DIN_H HAL_GPIO_WritePin(LCD_DIN_GPIO_Port,LCD_DIN_Pin,GPIO_PIN_SET)
+#define DIN_L HAL_GPIO_WritePin(LCD_DIN_GPIO_Port,LCD_DIN_Pin,GPIO_PIN_RESET)
+
+#define SCLK_H HAL_GPIO_WritePin(LCD_SCK_GPIO_Port,LCD_SCK_Pin,GPIO_PIN_SET)
+#define SCLK_L HAL_GPIO_WritePin(LCD_SCK_GPIO_Port,LCD_SCK_Pin,GPIO_PIN_RESET)
+
+#define CMD 0
+#define DAT 1
+enum StrLocation{
+	Left=0,
+	Middle,
+	Right
+};
+void LCD_WriteByte(uint8_t dc,uint8_t b);
+void LCD_Init(void);
+void LCD_Clean(void);
+void LCD_SetXY(uint8_t x,uint8_t y);
+extern unsigned char font6x8[][6];
+uint8_t GetFont(uint8_t dat);
+void g_puts(uint8_t ch);
+void g_print(char* dat);
+void SetLine(uint8_t line);
+void l_print(char* dat,uint8_t line,enum StrLocation loc);
+void GUI_SetLine(uint8_t line);
+void f_print(char* dat);
+#endif

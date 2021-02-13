@@ -140,7 +140,7 @@ void f_print(char* dat)
 		for(cnt=0;cnt<length;cnt++)
 			buffer[cnt]=dat[cnt];
 		l_print(buffer,line_ctl,Left);
-		if(line_ctl==6)
+		if(line_ctl==5)
 			line_ctl=0;
 		else
 			line_ctl++;
@@ -152,7 +152,7 @@ void f_print(char* dat)
 			memcpy(buffer,dat+cnt,14);
 			l_print((char*)&"              ",line_ctl,Left);
 			l_print(buffer,line_ctl,Left);
-			if(line_ctl==6)
+			if(line_ctl==5)
 				line_ctl=0;
 			else
 				line_ctl++;
@@ -163,9 +163,12 @@ void f_print(char* dat)
 		uint8_t t_buffer[14];
 		memset(t_buffer,' ',sizeof(t_buffer));
 		for(cnt=0;cnt<length;cnt++)
-			t_buffer[cnt]=buffer[cnt];
-		l_print(buffer,line_ctl,Left);
-		if(line_ctl==6)
+		{
+			if(buffer[cnt])
+				t_buffer[cnt]=buffer[cnt];
+		}
+		l_print((char*)t_buffer,line_ctl,Left);
+		if(line_ctl==5)
 				line_ctl=0;
 		else
 			line_ctl++;
