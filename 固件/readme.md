@@ -1,1 +1,0 @@
-### Firmware Uploaded on 4 Feb,2021
