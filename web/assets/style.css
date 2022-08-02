@@ -1,0 +1,41 @@
+@font-face {
+    font-family: 'LSANS';
+    src: url('./LSANS.ttf')
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #fafafa;
+    font-family: 'LSANS','Lucida Sans', 'Lucida Sans Regular', 'Lucida Grande', 'Lucida Sans Unicode', 'Geneva, Verdana, sans-serif';
+    width: 100vw;
+    height: 100vh;
+    -moz-user-select: none;
+    /* Firefox私有属性 */
+    -webkit-user-select: none;
+    /* WebKit内核私有属性 */
+    -ms-user-select: none;
+    /* IE私有属性(IE10及以后) */
+    -khtml-user-select: none;
+    /* KHTML内核私有属性 */
+    -o-user-select: none;
+    /* Opera私有属性 */
+    user-select: none;
+    /* CSS3属性 */
+}
+
+.intelli-card {
+    padding: 30px;
+    margin-top: 30px;
+    border-radius: 10px;
+    background-color: #fff;
+    color: navy;
+    width: 100%;
+}
+
+.fa-in-card{
+    font-size: 32px;
+    margin-top:5.6px;
+    width: 32px;
+    text-align: center;
+}
