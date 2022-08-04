@@ -15,13 +15,16 @@
     <div id="app">
         <header class="d-flex justify-content-center py-3" v-if="route!='login'">
             <ul class="nav nav-pills">
-                <li class="nav-item"><a href="#" v-bind:class="['nav-link',{'active':route=='home'}]" aria-current="page" v-on:click="route='home'">Home</a></li>
-                <li class="nav-item"><a href="#" v-bind:class="['nav-link',{'active':route=='view'}]" v-on:click="route='view'">View</a></li>
-                <li class="nav-item"><a href="#" v-bind:class="['nav-link',{'active':route=='manage'}]" v-on:click="route='manage'">Manage</a></li>
+                <li class="nav-item"><a href="#" v-bind:class="['nav-link',{'active':route=='home'}]"
+                        aria-current="page" v-on:click="route='home'">Home</a></li>
+                <li class="nav-item"><a href="#" v-bind:class="['nav-link',{'active':route=='view'}]"
+                        v-on:click="route='view'">View</a></li>
+                <li class="nav-item"><a href="#" v-bind:class="['nav-link',{'active':route=='manage'}]"
+                        v-on:click="route='manage'">Manage</a></li>
                 <li class="nav-item"><a href="#" class="nav-link" v-on:click="logout">Logout</a></li>
             </ul>
         </header>
-        <div class="container mt-5">
+        <div class="container mt-2">
             <div class="row" v-if="route=='login'">
                 <div class="col-md-4">
                 </div>
@@ -55,68 +58,135 @@
                 <div class="col-md-4">
                     <h4 style="text-align:center">Available Devices</h4>
                     <div class="list-group">
-                        <a href="#" class="list-group-item list-group-item-action d-flex gap-3 py-3" aria-current="true" v-on:click="viewDevice('sanya01')">
+                        <a href="#" class="list-group-item list-group-item-action d-flex gap-3 py-3" aria-current="true"
+                            v-on:click="viewDevice('sanya01')">
                             <i class="fa fa-server fa-in-card" aria-hidden="true"></i>
-                          <div class="d-flex gap-2 w-100 justify-content-between">
-                            <div>
-                              <h6 class="mb-0">Sanya 01</h6>
-                              <p class="mb-0 opacity-75">Room controller</p>
+                            <div class="d-flex gap-2 w-100 justify-content-between">
+                                <div>
+                                    <h6 class="mb-0">Sanya 01</h6>
+                                    <p class="mb-0 opacity-75">Room controller</p>
+                                </div>
+                                <small class="opacity-80 text-nowrap text-success">online</small>
                             </div>
-                            <small class="opacity-80 text-nowrap text-success">online</small>
-                          </div>
                         </a>
-                        <a href="#" class="list-group-item list-group-item-action d-flex gap-3 py-3" aria-current="true" v-on:click="viewDevice('s22+')">
+                        <a href="#" class="list-group-item list-group-item-action d-flex gap-3 py-3" aria-current="true"
+                            v-on:click="viewDevice('s22+')">
                             <i class="fa fa-mobile fa-in-card" aria-hidden="true"></i>
-                          <div class="d-flex gap-2 w-100 justify-content-between">
-                            <div>
-                              <h6 class="mb-0">S22+</h6>
-                              <p class="mb-0 opacity-75">Mobile Phone</p>
+                            <div class="d-flex gap-2 w-100 justify-content-between">
+                                <div>
+                                    <h6 class="mb-0">S22+</h6>
+                                    <p class="mb-0 opacity-75">Mobile Phone</p>
+                                </div>
+                                <small class="opacity-80 text-nowrap text-success">online</small>
                             </div>
-                            <small class="opacity-80 text-nowrap text-success">online</small>
-                          </div>
                         </a>
-                        <a href="#" class="list-group-item list-group-item-action d-flex gap-3 py-3" aria-current="true" v-on:click="viewDevice('yueyang01')">
+                        <a href="#" class="list-group-item list-group-item-action d-flex gap-3 py-3" aria-current="true"
+                            v-on:click="viewDevice('yueyang01')">
                             <i class="fa fa-file-text fa-in-card" aria-hidden="true"></i>
-                          <div class="d-flex gap-2 w-100 justify-content-between">
-                            <div>
-                              <h6 class="mb-0">Yueyang 01</h6>
-                              <p class="mb-0 opacity-75">NAS</p>
+                            <div class="d-flex gap-2 w-100 justify-content-between">
+                                <div>
+                                    <h6 class="mb-0">Yueyang 01</h6>
+                                    <p class="mb-0 opacity-75">NAS</p>
+                                </div>
+                                <small class="opacity-80 text-nowrap text-danger">offline</small>
                             </div>
-                            <small class="opacity-80 text-nowrap text-danger">offline</small>
-                          </div>
                         </a>
-                      </div>
-                </div>  
+                    </div>
+                </div>
                 <div class="col-md-4">
                 </div>
             </div>
-            <div class="row" v-if="route=='view'">
-                <div class="col-sm-4">
-                </div>
-                <div class="col-2">
-                    123
-                </div>
-                <div class="col-2">
-                    456
-                </div>
-                <div class="col-sm-4">
-                </div>
-                <div class="col-sm-4">
-                </div>
-                <div class="col-2">
-                    123
-                </div>
-                <div class="col-2">
-                    456
-                </div>
-                <div class="col-sm-4">
+            <div class="row" v-if="route=='view'" style="display:flex;justify-content:center;">
+                <div class="card-container" style="max-width:430px;">
+
+                    <div v-bind:class="['info-card',k.size=='single'?'info-card-small':'info-card-big']"
+                        v-for="k in deviceDetails" v-if="k.type=='display'" v-bind:key="k.name">
+                        <div style="display:flex;flex-direction:column;justify-content:center;font-size: 4em;">
+                            <i v-bind:class="['fa',k.icon]" aria-hidden="true"></i>
+                        </div>
+                        <div style="text-align:center ;">
+                            <span>{{k.name}}</span>
+                            <hr>
+                            <h3>
+                                {{k.value}}
+                                <small>{{k.unit}}</small>
+                            </h3>
+                        </div>
+                    </div>
+                    <div v-bind:class="['control-card',k.size=='single'?'info-card-small':'info-card-big']"
+                        v-for="k in deviceDetails" v-if="k.type=='control'" v-bind:key="k.name">
+                        <div style="display: flex;flex-direction:row;justify-content:space-between;width:100%;">
+                            <span v-if="k.unit=='toggle'"><i class="fa fa-cog" aria-hidden="true"></i>&nbsp;{{k.name}}</span>
+                            <span v-if="k.unit.indexOf('range(')>-1" style="line-height:38px"><i class="fa fa-cog" aria-hidden="true"></i>&nbsp;{{k.name}}</span>
+                            <span v-if="k.unit=='exec'" style="line-height:31px"><i class="fa fa-cog" aria-hidden="true"></i>&nbsp;{{k.name}}</span>
+                            <div style="width: 65px;display: flex;flex-direction: row;justify-content: flex-end;">
+                                <div class="form-check form-switch" v-if="k.unit=='toggle'">
+                                    <input class="form-check-input" type="checkbox" v-model="k.value">
+                                </div>
+                                <div v-if="k.unit.indexOf('range(')>-1">
+                                    <div class="input-group">
+                                        <input type="number" class="form-control" v-bind:min="parseInt(k.unit.replace('range(','').replace(')','').split(',')[0])" v-bind:max="parseInt(k.unit.replace('range(','').replace(')','').split(',')[1])" v-model="k.value">
+                                    </div>
+                                </div>
+                                <div v-if="k.unit=='exec'">
+                                    <button type="button" class="btn btn-outline-info btn-sm"
+                                        style="width: 65px;">Exec</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-bind:class="['control-card','info-card-big']">
+                        <span>
+                            <i class="fa fa-file-code-o" aria-hidden="true"></i>&nbsp;Scripts Control
+                        </span>
+                        <hr>
+                        <div style="display: flex;flex-direction:row;justify-content:space-between;width:100%;"
+                         v-for="k in deviceDetails" v-if="k.type=='script'">
+                            <span><i class="fa fa-code" aria-hidden="true"></i>&nbsp;{{k.name}}</span>
+                            <div style="width: 65px;display: flex;flex-direction: row;justify-content: flex-end;">
+                                <div class="form-check form-switch" v-if="k.unit=='toggle'">
+                                    <input class="form-check-input" type="checkbox" v-model="k.value">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div v-bind:class="['chart-card','info-card-big']">
+                        <div id="chart1" style="width: 100%;height:300px;"></div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
     <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
     <script src="https://cdn.bootcdn.net/ajax/libs/blueimp-md5/2.19.0/js/md5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.3.3/dist/echarts.min.js"></script>
     <script>
+        window.onload = () => {
+            
+        }
+
+        function loadChart(){
+            // 基于准备好的dom，初始化echarts实例
+            var myChart = echarts.init(document.getElementById('chart1'));
+            // 绘制图表
+            myChart.setOption({
+                title: {
+                    text: 'ECharts 入门示例'
+                },
+                tooltip: {},
+                xAxis: {
+                    data: ['衬衫', '羊毛衫', '雪纺衫', '裤子', '高跟鞋', '袜子']
+                },
+                yAxis: {},
+                series: [
+                    {
+                        name: '销量',
+                        type: 'bar',
+                        data: [5, 20, 36, 10, 10, 20]
+                    }
+                ]
+            });
+        }
 
         var app = new Vue({
             el: '#app',
@@ -125,7 +195,90 @@
                 username: "",
                 password: "",
                 rememberUser: false,
-                defaultDevice:'sanya01'
+                chosenDevice: 'sanya01',
+                devices: [],
+                deviceDetails: [
+                    {
+                        type: 'display',
+                        name: "Temperature",
+                        icon: "fa-thermometer-empty",
+                        value: 37,
+                        unit: '°C',
+                        size: 'single'
+                    },
+                    {
+                        type: 'display',
+                        name: "Pressure",
+                        icon: "fa-cloud",
+                        value: 1013,
+                        unit: 'hPa',
+                        size: 'single'
+                    },
+                    {
+                        type: 'display',
+                        name: "Illuminance",
+                        icon: "fa-lightbulb-o",
+                        value: 370,
+                        unit: 'lx',
+                        size: 'single'
+                    },
+                    {
+                        type: 'display',
+                        name: "Humidity",
+                        icon: "fa-tint",
+                        value: 65,
+                        unit: '%',
+                        size: 'single'
+                    },
+                    {
+                        type: 'control',
+                        name: "Full Lights",
+                        icon: "",
+                        value: true,
+                        unit: 'toggle',
+                        size: ''
+                    },
+                    {
+                        type: 'control',
+                        name: "Screen Brightness",
+                        icon: "",
+                        value: 70,
+                        unit: 'range(0,100)',
+                        size: ''
+                    },
+                    {
+                        type: 'control',
+                        name: "Screen Lock",
+                        icon: "",
+                        value: 0,
+                        unit: 'exec',
+                        size: ''
+                    },
+                    {
+                        type: 'control',
+                        name: "Air Conditioner",
+                        icon: "",
+                        value: 26,
+                        unit: 'range(16,28)',
+                        size: ''
+                    },
+                    {
+                        type: 'script',
+                        name: "Auto Light",
+                        icon: "",
+                        value: false,
+                        unit: 'toggle',
+                        size: ''
+                    },
+                    {
+                        type: 'script',
+                        name: "Auto TempCtl",
+                        icon: "",
+                        value: true,
+                        unit: 'toggle',
+                        size: ''
+                    },
+                ]
             },
             methods: {
                 clearPassword: function () {
@@ -155,14 +308,20 @@
                     }
                     this.route = "home";/*Change Status*/
                 },
-                logout:function(){
+                logout: function () {
                     this.clearPassword();
                     this.rememberUser = false;
                     this.route = "login";/*Change Status*/
                 },
-                viewDevice:function(d){
-                    this.defaultDevice=d;
-                    this.route="view";
+                viewDevice: function (d) {
+                    this.chosenDevice = d;
+                    this.route = "view";
+                    window.setTimeout(()=>{
+                        loadChart();
+                    },500);
+                },
+                submitChange:function(which,value){
+                    
                 }
             },
             mounted: function () {

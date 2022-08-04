@@ -22,6 +22,7 @@ body {
     /* Opera私有属性 */
     user-select: none;
     /* CSS3属性 */
+    overflow-x: hidden!important;
 }
 
 .intelli-card {
@@ -38,4 +39,46 @@ body {
     margin-top:5.6px;
     width: 32px;
     text-align: center;
+}
+
+.card-container{
+    display: flex;
+    flex-direction: row;
+    flex-flow: wrap;
+    justify-content: center;
+}
+
+.info-card{
+    background-color: #fff;
+    margin:10px 5px 0 5px;
+    padding: 10px;
+    color: navy;
+    display: flex;
+    flex-direction: row;
+    justify-content: space-around;
+}
+
+.info-card-small{
+    width: 170px;
+}
+
+.info-card-big{
+    width: 350px;
+}
+
+.control-card{
+    background-color: #fff;
+    margin:10px 5px 0 5px;
+    padding: 10px;
+    color: navy;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.chart-card{
+    background-color: #fff;
+    margin:10px 5px 0 5px;
+    padding: 10px;
+    color: navy;
 }
