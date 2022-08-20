@@ -48,6 +48,21 @@ body {
     justify-content: center;
 }
 
+.card-container-hoverable{
+    display: flex;
+    flex-direction: row;
+    flex-flow: wrap;
+    justify-content: center;
+}
+
+.card-container-hoverable :hover{
+    display: flex;
+    flex-direction: row;
+    flex-flow: wrap;
+    justify-content: center;
+    background-color: #fafafa;
+}
+
 .info-card{
     background-color: #fff;
     margin:10px 5px 0 5px;

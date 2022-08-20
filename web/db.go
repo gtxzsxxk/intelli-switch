@@ -20,16 +20,22 @@ type Device struct {
 	Online     uint   `json:"online"`
 }
 
-type DeviceDetails struct {
-	gorm.Model
-	Name     string `gorm:"size:32;unique:true"`
-	Type     string `gorm:"size:32"`
-	Icon     string `gorm:"size:64"`
-	Value    string
-	Unit     string `gorm:"size:16"`
-	Size     string `gorm:"size:16"`
-	DeviceID int
-	Device   Device
+type Property struct {
+	gorm.Model `json:"-"`
+	Name       string `gorm:"size:32;unique:true" json:"name"`
+	Type       string `gorm:"size:32" json:"type"`
+	Icon       string `gorm:"size:64" json:"icon"`
+	Unit       string `gorm:"size:16" json:"unit"`
+	Size       string `gorm:"size:16" json:"size"`
+	DeviceID   int    `json:"-"`
+	Device     Device `json:"-"`
+}
+
+type PropertyValue struct {
+	gorm.Model `json:"-"`
+	Value      string   `json:"value"`
+	PropertyID int      `json:"property_id"`
+	Property   Property `json:"-"`
 }
 
 var Db *gorm.DB
@@ -42,7 +48,7 @@ func db_initialize() {
 	}
 
 	// 迁移 schema
-	Db.AutoMigrate(&User{}, &Device{}, &DeviceDetails{})
+	Db.AutoMigrate(&User{}, &Device{}, &Property{}, &PropertyValue{})
 	/*
 		// Create
 		//db.Create(&Product{Code: "D42", Price: 100})

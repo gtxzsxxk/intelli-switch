@@ -18,5 +18,7 @@ func main() {
 	r.GET("/", index)
 	r.GET("/login/:username/:password", login)
 	r.GET("/device", getDevice)
+	r.GET("/device_detail/:name", getDeviceDetail)
+	r.POST("/device_detail/:property_id", updateDeviceDetail)
 	r.Run() // 监听并在 0.0.0.0:8080 上启动服务
 }

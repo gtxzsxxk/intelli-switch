@@ -70,8 +70,8 @@
                                     <h6 class="mb-0">{{item.name}}</h6>
                                     <p class="mb-0 opacity-75">{{item.type}}</p>
                                 </div>
-                                <small v-if="item.online" class="opacity-80 text-nowrap text-success">online</small>
-                                <small v-if="!item.online" class="opacity-80 text-nowrap text-danger">offline</small>
+                                <small v-if="item.online>0" class="opacity-80 text-nowrap text-success">online</small>
+                                <small v-if="item.online==0" class="opacity-80 text-nowrap text-danger">offline</small>
                             </div>
                         </a>
                     </div>
@@ -86,14 +86,47 @@
                         <span>You haven't chosen a device yet.</h4>
                     </div>
                     <div class="card-container" style="background-color: #fff;padding: 5px;width: 350px;margin: auto;"
-                        v-if="haveChosenDevice">
+                        v-if="haveChosenDevice" v-on:click="viewAPIdesc">
                         <span><i class="fa fa-check-circle-o" aria-hidden="true"></i>&nbsp;{{chosenDevice}}</h4>
                     </div>
-                    <div class="card-container" style="max-width:430px;" v-if="haveChosenDevice">
+                    <div class="card-container mt-2" v-if="haveChosenDevice&&view_apidesc">
+                        <div style="background-color: #fff;padding: 15px;width: 350px;margin: auto;">
+                            <h4>Access Desc.</h4>
+                            <hr>
+                            <h5>
+                                Prerequisites
+                            </h5>
+                            <span>You should have an account with at least level-1 permission.</span>
+                            <h5>
+                                Acquire Permission
+                            </h5>
+                            <span>Use <code>XXTEA</code> algorithm to encrypt your value as your digital signature
+                                and upload this to the server.The cipher will be your md5 password[0:16].The server will
+                                decouple your
+                                JSON string and check your signature.If ok, the data will be stored in the server
+                                immediately.</span>
+                            <h5>
+                                Establish Connection
+                            </h5>
+                            <span>
+                                Try to connect to our server and send packets respectively as followings.
+                                <br>
+                                <code>API:/device_detail/:property_id</code>
+                                <pre v-for="p in deviceDetails"><code>{
+    "property_id":"{{p.property_id}}",
+    "value":"Your {{p.name}} value",
+    "username":"{{username}}",
+    "signature":"XXTEA encrypted value"
+}</code>
+</pre>
+                            </span>
+                        </div>
+                    </div>
+                    <div class="card-container" style="max-width:430px;" v-if="haveChosenDevice&&(!view_apidesc)">
 
                         <div v-bind:class="['info-card',k.size=='single'?'info-card-small':'info-card-big']"
                             v-for="k in deviceDetails" v-if="k.type=='display'" v-bind:key="k.name">
-                            <div style="display:flex;flex-direction:column;justify-content:center;font-size: 4em;">
+                            <div style="display:flex;flex-direction:column;justify-content:center;font-size: 3em;">
                                 <i v-bind:class="['fa',k.icon]" aria-hidden="true"></i>
                             </div>
                             <div style="text-align:center ;">
@@ -134,7 +167,7 @@
                                 </div>
                             </div>
                         </div>
-                        <div v-bind:class="['control-card','info-card-big']">
+                        <div v-bind:class="['control-card','info-card-big']" v-if="getScriptLength>0">
                             <span>
                                 <i class="fa fa-file-code-o" aria-hidden="true"></i>&nbsp;Scripts Control
                             </span>
@@ -154,7 +187,7 @@
                             <div v-for="chart in deviceDetails" v-if="chart.type=='chart'"
                                 v-bind:id="chart.name+'_chart'" style="width: 100%;height:300px;"></div>
                         </div>
-                        <div v-bind:class="['chart-card','info-card-big']" v-if="getChartLength>0">
+                        <div v-bind:class="['chart-card','info-card-big']" v-if="getMapLength>0">
                             <div v-for="map in deviceDetails" v-if="map.type=='map'">
                                 <span>{{map.name}}</span>
                                 <div v-bind:id="map.name+'_map'" style="width: 100%;height:300px;"></div>
@@ -343,19 +376,29 @@
                 }
             }
         }
-
         function loadMaps() {
             let cnt = app.deviceDetails.length;
             for (let i = 0; i < cnt; i++) {
                 if (app.deviceDetails[i].type == 'map') {
-                    let len = app.deviceDetails[i].value.length;
-                    var map = L.map(app.deviceDetails[i].name + '_map').setView(app.deviceDetails[i].value[len - 1], 13);
+                    let valueObj = eval(app.deviceDetails[i].value);
+                    console.log(valueObj);
+                    let len = valueObj.length;
+                    var container = L.DomUtil.get(app.deviceDetails[i].name + '_map');
+                    if (container != null) {
+                        container._leaflet_id = null;
+                    }
+                    /* let dom=document.getElementById(app.deviceDetails[i].name + '_map');
+                    let dom_parent=dom.parentNode;
+                    dom_parent.removeChild(dom);
+                    let div=document.createElement(app.deviceDetails[i].name + '_map');
+                    dom_parent.appendChild(div);*/
+                    let map = L.map(app.deviceDetails[i].name + '_map').setView(valueObj[len - 1], 13);
                     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                         maxZoom: 19,
                         attribution: '© OpenStreetMap'
                     }).addTo(map);
-                    var marker = L.marker(app.deviceDetails[i].value[len - 1]).addTo(map);
-                    var polyline = L.polyline(app.deviceDetails[i].value, { color: 'red' }).addTo(map);
+                    var marker = L.marker(valueObj[len - 1]).addTo(map);
+                    var polyline = L.polyline(valueObj, { color: 'red' }).addTo(map);
                     map.fitBounds(polyline.getBounds());
                 }
             }
@@ -377,12 +420,43 @@
             return JSON.parse(JSON.stringify(obj));
         }
 
-        let deviceRefreshInt, deviceDetailRefreshInt;
+        let deviceRefreshInt, deviceDetailRefreshInt, downloadInterval = 10;
 
         function deviceRefresh() {
             ajax("get", "/device", {}, (e) => {
-                let jsonObj = json.parse(e);
-                app.devices = jsonObj;
+                let jsonObj = JSON.parse(e);
+                if (jsonObj == null) {
+                    app.devices = []
+                }
+                else {
+                    app.devices = jsonObj;
+                }
+                app.$forceUpdate();
+            });
+        }
+
+        function deviceDetailRefresh() {
+            if (!app.haveChosenDevice) return;
+            ajax("get", "/device_detail/" + app.chosenDevice, {}, (e) => {
+                let jsonObj = JSON.parse(e);
+                if (jsonObj == null) {
+                    app.deviceDetails = []
+                }
+                else {
+                    app.deviceDetails = jsonObj;
+                }
+                if (app.getChartLength > 0) {
+                    window.setTimeout(() => {
+                        loadChart();
+                        //loadMaps();
+                    }, 500);
+                }
+                if (app.getMapLength > 0) {
+                    window.setTimeout(() => {
+                        //loadChart();
+                        loadMaps();
+                    }, 500);
+                }
                 app.$forceUpdate();
             });
         }
@@ -391,151 +465,14 @@
             el: '#app',
             data: {
                 route: "login", /* mode:login home view manage*/
+                view_apidesc: false,
                 manage_subroute: "main",/*main edit*/
                 username: "",
                 password: "",
                 rememberUser: false,
                 chosenDevice: 'sanya01',
-                devices: [
-                    {
-                        name: 'Sanya Room',
-                        type: 'Room Controller',
-                        icon: 'fa-server',
-                        online: false
-                    },
-                    {
-                        name: 'S22+',
-                        type: 'Mobile Phone',
-                        icon: 'fa-mobile',
-                        online: true
-                    },
-                    {
-                        name: 'Yueyang NAS',
-                        type: 'NAS',
-                        icon: 'fa-file-text',
-                        online: true
-                    },
-                    {
-                        name: 'Bike 01',
-                        type: 'Facility',
-                        icon: 'fa-bicycle',
-                        online: true
-                    }
-                ],
-                deviceDetails: [
-                    {
-                        type: 'display',
-                        name: "Temperature",
-                        icon: "fa-thermometer-empty",
-                        value: 37,
-                        unit: '°C',
-                        size: 'single'
-                    },
-                    {
-                        type: 'display',
-                        name: "Pressure",
-                        icon: "fa-cloud",
-                        value: 1013,
-                        unit: 'hPa',
-                        size: 'single'
-                    },
-                    {
-                        type: 'display',
-                        name: "Illuminance",
-                        icon: "fa-lightbulb-o",
-                        value: 370,
-                        unit: 'lx',
-                        size: 'single'
-                    },
-                    {
-                        type: 'display',
-                        name: "Humidity",
-                        icon: "fa-tint",
-                        value: 65,
-                        unit: '%',
-                        size: 'single'
-                    },
-                    {
-                        type: 'control',
-                        name: "Full Lights",
-                        icon: "",
-                        value: true,
-                        unit: 'toggle',
-                        size: ''
-                    },
-                    {
-                        type: 'control',
-                        name: "Screen Brightness",
-                        icon: "",
-                        value: 70,
-                        unit: 'range(0,100)',
-                        size: ''
-                    },
-                    {
-                        type: 'control',
-                        name: "Screen Lock",
-                        icon: "",
-                        value: 0,
-                        unit: 'exec',
-                        size: ''
-                    },
-                    {
-                        type: 'control',
-                        name: "Air Conditioner",
-                        icon: "",
-                        value: 26,
-                        unit: 'range(16,28)',
-                        size: ''
-                    },
-                    {
-                        type: 'script',
-                        name: "Auto Light",
-                        icon: "",
-                        value: false,
-                        unit: 'toggle',
-                        size: ''
-                    },
-                    {
-                        type: 'script',
-                        name: "Auto TempCtl",
-                        icon: "",
-                        value: true,
-                        unit: 'toggle',
-                        size: ''
-                    },
-                    {
-                        type: 'chart',
-                        name: "TempChart",
-                        icon: "",
-                        value: {
-                            xAxis: ['18:30', '19:30', '20:30', '21:30', '22:30'],
-                            yAxis: [27, 28, 28, 29, 31],
-                            type: 'line'
-                        },
-                        unit: '°C',
-                        size: ''
-                    },
-                    {
-                        type: 'chart',
-                        name: "BrightChart",
-                        icon: "",
-                        value: {
-                            xAxis: ['18:30', '19:30', '20:30', '21:30', '22:30'],
-                            yAxis: [720, 820, 825, 920, 3100],
-                            type: 'line'
-                        },
-                        unit: 'lx',
-                        size: ''
-                    },
-                    {
-                        type: 'map',
-                        name: "GPS Track",
-                        icon: "",
-                        value: [[18.29076, 109.49900], [18.28927, 109.49907], [18.28903, 109.49993], [18.28723, 109.49961]],
-                        unit: '',
-                        size: ''
-                    },
-                ]
+                devices: [],
+                deviceDetails: []
                 ,
                 manageDeviceName: "", /*In manage mode,it means the new name that the admin changes.*/
                 newDeviceDetails: [], /*When to update a device,we should firstly opearate on its copy.*/
@@ -571,7 +508,8 @@
                                 this.clearPassword();
                             }
                             this.route = "home";/*Change Status*/
-                            window.deviceRefreshInt = window.setInterval(deviceRefresh, 5000);
+                            deviceRefresh();
+                            window.deviceRefreshInt = window.setInterval(deviceRefresh, downloadInterval * 1000);
                             /* TODO:Frequently Download Information from the server */
                             /* TODO:If we confirm that the user is inspecting a device,frequently update the data. */
                             /* TODO:Implement the add device function */
@@ -605,13 +543,18 @@
                 viewDevice: function (d) {
                     this.chosenDevice = d;
                     this.route = "view";
-                    if (this.getChartLength > 0) {
-                        window.setTimeout(() => {
-                            loadChart();
-                            loadMaps();
-                        }, 500);
-                    }
+                    this.deviceDetails = [];
                     /* TODO: update information from the server */
+                    deviceDetailRefresh();
+                    window.deviceDetailRefreshInt = window.setInterval(deviceDetailRefresh, downloadInterval * 1000);
+                },
+                viewAPIdesc: function () {
+                    if (this.view_apidesc) {
+                        this.view_apidesc = false;
+                    }
+                    else {
+                        this.view_apidesc = true;
+                    }
                 },
                 goAddPage: function () {
                     this.chosenDevice = "";
@@ -667,6 +610,7 @@
                     this.$forceUpdate();
                 },
                 managePropertyDelete: function (name) {
+                    /* TODO:JUST DELETE THE PROPERTY */
                     if (!confirm("Are you sure to delete Property '" + name + "' ?")) {
                         return;
                     }
@@ -685,6 +629,7 @@
                     this.$forceUpdate();
                 },
                 manageDeviceSave: function () {
+                    /* TODO:DELETE ALL THEN ADD ALL FOLLOWING THE ORDER */
                     if (!confirm("Are you sure to save the changes on device '" + this.chosenDevice + "' ?")) {
                         return;
                     }
@@ -728,10 +673,28 @@
                 }
             },
             computed: {
+                getScriptLength: function () {
+                    let cnt = 0;
+                    for (let i = 0; i < this.deviceDetails.length; i++) {
+                        if (this.deviceDetails[i].type == "script") {
+                            cnt++;
+                        }
+                    }
+                    return cnt;
+                },
                 getChartLength: function () {
                     let cnt = 0;
                     for (let i = 0; i < this.deviceDetails.length; i++) {
                         if (this.deviceDetails[i].type == "chart") {
+                            cnt++;
+                        }
+                    }
+                    return cnt;
+                },
+                getMapLength: function () {
+                    let cnt = 0;
+                    for (let i = 0; i < this.deviceDetails.length; i++) {
+                        if (this.deviceDetails[i].type == "map") {
                             cnt++;
                         }
                     }
