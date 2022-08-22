@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/base64"
 	"encoding/json"
-	"strconv"
 	"strings"
 	"time"
 
@@ -25,7 +24,7 @@ func login(c *gin.Context) {
 	err := Db.First(&user_s, "username=?", username).Error
 	if err != nil {
 		session.Delete("username")
-		c.String(200, "{\"msg\":\"No such an user.\"}")
+		c.String(404, "{\"msg\":\"No such an user.\"}")
 		return
 	}
 	if password == user_s.Password {
@@ -34,13 +33,26 @@ func login(c *gin.Context) {
 		c.String(200, "{\"msg\":\"success\"}")
 	} else {
 		session.Delete("username")
-		c.String(200, "{\"msg\":\"Invalid login attempt\"}")
+		c.String(401, "{\"msg\":\"Invalid login attempt\"}")
 	}
+}
+
+func addDevice(c *gin.Context) {
+	device_name := c.Param("name")
+	device_type := c.Param("type")
+	device_icon := c.Param("icon")
+	device_new := Device{
+		Name: device_name,
+		Type: device_type,
+		Icon: device_icon,
+	}
+	Db.Create(&device_new)
+	updateDeviceProperty(c)
 }
 
 func getDevice(c *gin.Context) {
 	if !hasLogin(c) {
-		c.String(200, "{\"msg\":\"No permission.\"}")
+		c.String(401, "{\"msg\":\"No permission.\"}")
 		return
 	}
 	var devices []Device
@@ -65,16 +77,32 @@ func getDevice(c *gin.Context) {
 			devices[i].Online = 0
 		} else {
 			devices[i].Online = 1
-			break
+			continue
 		}
 	}
 	bytedata, _ := json.Marshal(devices)
 	c.String(200, string(bytedata))
 }
 
+func deleteDevice(c *gin.Context) {
+	/* TODO: determine whether the user have the permission level */
+	if !hasLogin(c) {
+		c.String(401, "{\"msg\":\"No permission.\"}")
+		return
+	}
+	device_name := c.Param("name")
+	var dev Device
+	if err := Db.First(&dev, "name=?", device_name).Error; err != nil {
+		c.String(400, "{\"msg\":\"No such a device.\"}")
+		return
+	}
+	Db.Delete(&dev)
+	c.String(200, "{\"msg\":\"success\"}")
+}
+
 func getDeviceDetail(c *gin.Context) {
 	if !hasLogin(c) {
-		c.String(200, "{\"msg\":\"No permission.\"}")
+		c.String(401, "{\"msg\":\"No permission.\"}")
 		return
 	}
 	var device Device
@@ -135,8 +163,8 @@ func getDeviceDetail(c *gin.Context) {
 	c.String(200, string(bytedata))*/
 }
 
-func updateDeviceDetail(c *gin.Context) {
-	property_id := c.Param("property_id")
+func addDeviceDetail(c *gin.Context) {
+	name := c.Param("name")
 	value := c.PostForm("value")
 	usr_real := c.PostForm("username")
 	value_inkey := c.PostForm("signature")
@@ -153,13 +181,101 @@ func updateDeviceDetail(c *gin.Context) {
 		c.String(401, "{\"msg\":\"No permission.\"}")
 		return
 	}
-	var property Property
-	if err := Db.First(&property, "ID=?", property_id).Error; err != nil {
-		c.String(400, "{\"msg\":\"No such a property.\"}")
+	var device Device
+	if err := Db.First(&device, "name=?", name).Error; err != nil {
+		c.String(400, "{\"msg\":\"No such a device.\"}")
 		return
 	}
-	prop_id_int, _ := strconv.ParseInt(property_id, 10, 64)
-	Db.Create(&PropertyValue{PropertyID: int(prop_id_int), Value: value})
+	var values []string
+	if err := json.Unmarshal([]byte(value), &values); err != nil {
+		c.String(400, "{\"msg\":\"Bad JSON grammar.\"}")
+		return
+	}
+	var properties []Property
+	if err := Db.Find(&properties, "device_id=?", device.ID).Error; err != nil {
+		c.String(500, "{\"msg\":\"Property Query Error.\"}")
+		return
+	}
+	if len(values) != len(properties) {
+		c.String(400, "{\"msg\":\"Value Relation Error.\"}")
+		return
+	}
+	for i, v := range properties {
+		tmp_property_value := PropertyValue{
+			PropertyID: int(v.ID),
+			Value:      values[i],
+		}
+		Db.Create(&tmp_property_value)
+	}
+	c.String(200, "{\"msg\":\"success\"}")
+	/*
+		var properties []Property
+		if err := Db.First(&property, "ID=?", property_id).Error; err != nil {
+			c.String(400, "{\"msg\":\"No such a property.\"}")
+			return
+		}
+		prop_id_int, _ := strconv.ParseInt(property_id, 10, 64)
+		Db.Create(&PropertyValue{PropertyID: int(prop_id_int), Value: value})
+		c.String(200, "{\"msg\":\"success\"}")*/
+}
+
+func updateDeviceProperty(c *gin.Context) {
+	if !hasLogin(c) {
+		c.String(401, "{\"msg\":\"No permission.\"}")
+		return
+	}
+	/* TODO: delete all properties and remake them.*/
+	name := c.Param("name")
+	var device Device
+	if err := Db.First(&device, "name=?", name).Error; err != nil {
+		c.String(400, "{\"msg\":\"No such a device.\"}")
+		return
+	}
+	/* Build new properties */
+	body_json := make(map[string]string)
+	c.BindJSON(&body_json)
+	properties_str := body_json["properties"]
+
+	type DeviceDetail struct {
+		Property
+		PropertyValue
+	}
+	var new_device_details []DeviceDetail
+	if err := json.Unmarshal([]byte(properties_str), &new_device_details); err != nil {
+		c.String(400, "{\"msg\":\"Cannot unmarshal json text.\"}")
+		return
+	}
+	var old_device_details []Property
+	Db.Where("device_id=?", device.ID).Find(&old_device_details)
+	/* Inherit the properties' legacy */
+
+	for _, v := range new_device_details {
+		p_name := v.Name
+		new_property := Property{
+			Name:     v.Name,
+			Type:     v.Type,
+			Icon:     v.Icon,
+			Unit:     v.Unit,
+			Size:     v.Size,
+			DeviceID: int(device.ID),
+		}
+		Db.Save(&new_property)
+		for _, o_p := range old_device_details {
+			if o_p.Name == p_name {
+				o_p_id := o_p.ID
+				Db.Model(&PropertyValue{}).Where("property_id=?", o_p_id).Update("property_id", new_property.ID)
+				/*var old_property_values []PropertyValue
+				Db.Where("property_id=?",o_p_id).Find(&old_property_values)
+				for _,old_value:=range old_property_values {
+					Db.Model(&old_value).Update()
+				}*/
+				break
+			}
+		}
+	}
+	for _, o_p := range old_device_details {
+		Db.Delete(&o_p)
+	}
 	c.String(200, "{\"msg\":\"success\"}")
 }
 

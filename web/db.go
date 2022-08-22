@@ -22,7 +22,7 @@ type Device struct {
 
 type Property struct {
 	gorm.Model `json:"-"`
-	Name       string `gorm:"size:32;unique:true" json:"name"`
+	Name       string `gorm:"size:32;" json:"name"`
 	Type       string `gorm:"size:32" json:"type"`
 	Icon       string `gorm:"size:64" json:"icon"`
 	Unit       string `gorm:"size:16" json:"unit"`

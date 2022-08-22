@@ -111,14 +111,12 @@
                             <span>
                                 Try to connect to our server and send packets respectively as followings.
                                 <br>
-                                <code>API:/device_detail/:property_id</code>
-                                <pre v-for="p in deviceDetails"><code>{
-    "property_id":"{{p.property_id}}",
-    "value":"Your {{p.name}} value",
+                                <code>API:/device_details/{{this.chosenDevice}}</code>
+                                <pre><code>{
+    "value":"[<span v-for="p in deviceDetails">\"{{p.name}}'s value\",</span>]",
     "username":"{{username}}",
     "signature":"XXTEA encrypted value"
-}</code>
-</pre>
+}</code></pre>
                             </span>
                         </div>
                     </div>
@@ -128,13 +126,13 @@
                             v-for="k in deviceDetails" v-if="k.type=='display'" v-bind:key="k.name">
                             <div style="display:flex;flex-direction:column;justify-content:center;font-size: 3em;">
                                 <i v-bind:class="['fa',k.icon]" aria-hidden="true"></i>
+                                <small style="font-size: .50em;text-align: center;">{{k.unit}}</small>
                             </div>
                             <div style="text-align:center ;">
                                 <span>{{k.name}}</span>
                                 <hr>
                                 <h3>
                                     {{k.value}}
-                                    <small>{{k.unit}}</small>
                                 </h3>
                             </div>
                         </div>
@@ -150,14 +148,14 @@
                                 <div style="width: 65px;display: flex;flex-direction: row;justify-content: flex-end;">
                                     <div class="form-check form-switch" v-if="k.unit=='toggle'">
                                         <input class="form-check-input" type="checkbox" v-model="k.value"
-                                            v-on:change="submitChange(k.name,k.value?1:0)">
+                                            v-on:change="submitChange(k.name,eval(k.value)?1:0)">
                                     </div>
                                     <div v-if="k.unit.indexOf('range(')>-1">
                                         <div class="input-group">
                                             <input type="number" class="form-control"
                                                 v-bind:min="parseInt(k.unit.replace('range(','').replace(')','').split(',')[0])"
                                                 v-bind:max="parseInt(k.unit.replace('range(','').replace(')','').split(',')[1])"
-                                                v-model="k.value" v-on:change="submitChange(k.name,k.value)">
+                                                v-model="k.value" v-on:change="submitChange(k.name,eval(k.value))">
                                         </div>
                                     </div>
                                     <div v-if="k.unit=='exec'">
@@ -178,7 +176,7 @@
                                 <div style="width: 65px;display: flex;flex-direction: row;justify-content: flex-end;">
                                     <div class="form-check form-switch" v-if="k.unit=='toggle'">
                                         <input class="form-check-input" type="checkbox" v-model="k.value"
-                                            v-on:change="submitChange(k.name,k.value?1:0)">
+                                            v-on:change="submitChange(k.name,eval(k.value)?1:0)">
                                     </div>
                                 </div>
                             </div>
@@ -242,6 +240,16 @@
                                 <label class="form-label">Device Name:</label>
                                 <input type="text" class="form-control" placeholder="Your device name"
                                     v-model="manageDeviceName">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Device Type:</label>
+                                <input type="text" class="form-control" placeholder="Your device type"
+                                    v-model="manageDeviceType">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Device Icon:</label>
+                                <input type="text" class="form-control" placeholder="Icon in font-awesome-4"
+                                    v-model="manageDeviceIcon">
                             </div>
                         </div>
                         <hr>
@@ -344,7 +352,7 @@
     <script src="./assets/js/leaflet.js"></script>
     <script>
         window.onload = () => {
-
+            /* TODO: Make Manage Subsystem Available */
         }
 
         function loadChart() {
@@ -381,7 +389,7 @@
             for (let i = 0; i < cnt; i++) {
                 if (app.deviceDetails[i].type == 'map') {
                     let valueObj = eval(app.deviceDetails[i].value);
-                    console.log(valueObj);
+                    //console.log(valueObj);
                     let len = valueObj.length;
                     var container = L.DomUtil.get(app.deviceDetails[i].name + '_map');
                     if (container != null) {
@@ -405,9 +413,9 @@
         }
 
         function ajax(method, url, data, callback) {
-            var httpRequest = new XMLHttpRequest();//第一步：建立所需的对象
-            httpRequest.open(method, url, true);//第二步：打开连接  将请求参数写在url中  ps:"./Ptest.php?name=test&nameone=testone"
-            httpRequest.send();
+            var httpRequest = new XMLHttpRequest();
+            httpRequest.open(method, url, true);
+            httpRequest.send(data);
             httpRequest.onreadystatechange = function () {
                 if (httpRequest.readyState == 4 && httpRequest.status == 200) {
                     var json = httpRequest.responseText;
@@ -423,7 +431,7 @@
         let deviceRefreshInt, deviceDetailRefreshInt, downloadInterval = 10;
 
         function deviceRefresh() {
-            ajax("get", "/device", {}, (e) => {
+            ajax("get", "/devices", {}, (e) => {
                 let jsonObj = JSON.parse(e);
                 if (jsonObj == null) {
                     app.devices = []
@@ -437,25 +445,30 @@
 
         function deviceDetailRefresh() {
             if (!app.haveChosenDevice) return;
-            ajax("get", "/device_detail/" + app.chosenDevice, {}, (e) => {
+            ajax("get", "/device_details/" + app.chosenDevice, {}, (e) => {
                 let jsonObj = JSON.parse(e);
                 if (jsonObj == null) {
                     app.deviceDetails = []
                 }
                 else {
+                    for (let i = 0; i < jsonObj.length; i++) {
+                        jsonObj[i].value = eval(jsonObj[i].value.toLowerCase());
+                    }
                     app.deviceDetails = jsonObj;
                 }
-                if (app.getChartLength > 0) {
-                    window.setTimeout(() => {
-                        loadChart();
-                        //loadMaps();
-                    }, 500);
-                }
-                if (app.getMapLength > 0) {
-                    window.setTimeout(() => {
-                        //loadChart();
-                        loadMaps();
-                    }, 500);
+                if (!app.view_apidesc) {
+                    if (app.getChartLength > 0) {
+                        window.setTimeout(() => {
+                            loadChart();
+                            //loadMaps();
+                        }, 200);
+                    }
+                    if (app.getMapLength > 0) {
+                        window.setTimeout(() => {
+                            //loadChart();
+                            loadMaps();
+                        }, 200);
+                    }
                 }
                 app.$forceUpdate();
             });
@@ -470,11 +483,14 @@
                 username: "",
                 password: "",
                 rememberUser: false,
-                chosenDevice: 'sanya01',
+                chosenDevice: '',
                 devices: [],
                 deviceDetails: []
                 ,
                 manageDeviceName: "", /*In manage mode,it means the new name that the admin changes.*/
+                manageDeviceType: "",
+                manageDeviceIcon: "",
+                manage_add_mode: false,
                 newDeviceDetails: [], /*When to update a device,we should firstly opearate on its copy.*/
                 manageOnChangePropertyName: "",/*The property that is on change.*/
                 manageNewPropertyType: "",
@@ -551,6 +567,7 @@
                 viewAPIdesc: function () {
                     if (this.view_apidesc) {
                         this.view_apidesc = false;
+                        deviceDetailRefresh();
                     }
                     else {
                         this.view_apidesc = true;
@@ -559,12 +576,24 @@
                 goAddPage: function () {
                     this.chosenDevice = "";
                     this.manage_subroute = "edit";
+                    this.manageDeviceName = "";
+                    this.manageDeviceType = "";
+                    this.manageDeviceIcon = "";
+                    this.manage_add_mode = true;
                     //this.newDeviceDetails=jsonClone(this.deviceDetails);
                 },
                 goUpdatePage: function () {
                     this.manage_subroute = "edit";
                     this.newDeviceDetails = jsonClone(this.deviceDetails);
                     this.manageDeviceName = this.chosenDevice;
+                    this.manage_add_mode = false;
+                    for (let i = 0; i < this.devices.length; i++) {
+                        if (this.devices[i].name == this.manageDeviceName) {
+                            this.manageDeviceIcon = this.devices[i].icon;
+                            this.manageDeviceType = this.devices[i].type;
+                            break;
+                        }
+                    }
                 },
                 managePropertyAdd: function () {
                     if (this.manageNewPropertyType == "" || this.manageNewPropertyName == "") {
@@ -579,7 +608,7 @@
                         type: this.manageNewPropertyType,
                         name: this.manageNewPropertyName,
                         icon: this.manageNewPropertyIcon,
-                        value: 0,
+                        value: "0",
                         unit: this.manageNewPropertyUnit,
                         size: this.manageNewPropertySize
                     }
@@ -629,21 +658,28 @@
                     this.$forceUpdate();
                 },
                 manageDeviceSave: function () {
-                    /* TODO:DELETE ALL THEN ADD ALL FOLLOWING THE ORDER */
                     if (!confirm("Are you sure to save the changes on device '" + this.chosenDevice + "' ?")) {
                         return;
                     }
                     this.deviceDetails = jsonClone(this.newDeviceDetails);
-                    this.manage_subroute = "main";
-                    /* TODO:Determine it is update or add a new device.Update changes to backend */
+                    if (this.manage_add_mode) {
+                        ajax("POST", "/devices/" + app.manageDeviceName + "/" + app.manageDeviceType + "/" + app.manageDeviceIcon, JSON.stringify({ "properties": JSON.stringify(this.deviceDetails) }), (e) => {
+                            this.manage_subroute = "main";
+                        });
+                    } else {
+                        ajax("PUT", "/device_property/" + app.manageDeviceName, JSON.stringify({ "properties": JSON.stringify(this.deviceDetails) }), (e) => {
+
+                            this.manage_subroute = "main";
+                        });
+                    }
                 },
                 manageDeviceDelete: function () {
                     if (!confirm("Are you sure to delete device '" + this.chosenDevice + "' ?")) {
                         return;
                     }
                     let index = -1;
-                    for (let i = 0; i < this.devices; i++) {
-                        if (this.chosenDevice == this.devices[i]) {
+                    for (let i = 0; i < this.devices.length; i++) {
+                        if (this.chosenDevice == this.devices[i].name) {
                             index = i;
                             break;
                         }
@@ -651,11 +687,18 @@
                     if (index < 0) {
                         return;
                     }
-                    this.devices.splice(index, 1);
-                    this.manage_subroute = "main";
-                    this.chosenDevice = "";
-                    changeRoute("home");
-                    this.$forceUpdate();
+                    ajax("DELETE", "/devices/" + this.chosenDevice, "", (e) => {
+                        if (JSON.parse(e).msg == "success") {
+                            this.devices.splice(index, 1);
+                            this.manage_subroute = "main";
+                            this.chosenDevice = "";
+                            changeRoute("home");
+                            this.$forceUpdate();
+                        }
+                        else {
+                            alert("Failed to delete device " + this.chosenDevice);
+                        }
+                    });
                     /* TODO:Directly reload device list from the server */
                 },
                 submitChange: function (which, value) {

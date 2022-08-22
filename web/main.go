@@ -17,8 +17,11 @@ func main() {
 	r.Static("/assets", "./assets")
 	r.GET("/", index)
 	r.GET("/login/:username/:password", login)
-	r.GET("/device", getDevice)
-	r.GET("/device_detail/:name", getDeviceDetail)
-	r.POST("/device_detail/:property_id", updateDeviceDetail)
+	r.GET("/devices", getDevice)
+	r.POST("/devices/:name/:type/:icon", addDevice)
+	r.DELETE("/devices/:name", deleteDevice)
+	r.GET("/device_details/:name", getDeviceDetail)
+	r.POST("/device_details/:name", addDeviceDetail)
+	r.PUT("/device_property/:name", updateDeviceProperty)
 	r.Run() // 监听并在 0.0.0.0:8080 上启动服务
 }
