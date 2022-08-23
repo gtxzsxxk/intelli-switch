@@ -1,12 +1,13 @@
 package main
 
 import (
+	"crypto/md5"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
-	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
 	"github.com/xxtea/xxtea-go/xxtea"
 )
@@ -16,23 +17,17 @@ func index(c *gin.Context) {
 }
 
 func login(c *gin.Context) {
-	session := sessions.Default(c)
-	session.Options(sessions.Options{MaxAge: 14515200})
 	username := c.Param("username")
 	password := c.Param("password")
 	var user_s User
 	err := Db.First(&user_s, "username=?", username).Error
 	if err != nil {
-		session.Delete("username")
 		c.String(404, "{\"msg\":\"No such an user.\"}")
 		return
 	}
 	if password == user_s.Password {
-		session.Set("username", username)
-		session.Save()
-		c.String(200, "{\"msg\":\"success\"}")
+		c.String(200, "{\"msg\":\"success\",\"permission\":"+fmt.Sprintf("%d", user_s.Permission)+"}")
 	} else {
-		session.Delete("username")
 		c.String(401, "{\"msg\":\"Invalid login attempt\"}")
 	}
 }
@@ -51,7 +46,7 @@ func addDevice(c *gin.Context) {
 }
 
 func getDevice(c *gin.Context) {
-	if !hasLogin(c) {
+	if !hasLogin(c, 0) {
 		c.String(401, "{\"msg\":\"No permission.\"}")
 		return
 	}
@@ -86,7 +81,7 @@ func getDevice(c *gin.Context) {
 
 func deleteDevice(c *gin.Context) {
 	/* TODO: determine whether the user have the permission level */
-	if !hasLogin(c) {
+	if !hasLogin(c, 2) {
 		c.String(401, "{\"msg\":\"No permission.\"}")
 		return
 	}
@@ -101,7 +96,7 @@ func deleteDevice(c *gin.Context) {
 }
 
 func getDeviceDetail(c *gin.Context) {
-	if !hasLogin(c) {
+	if !hasLogin(c, 0) {
 		c.String(401, "{\"msg\":\"No permission.\"}")
 		return
 	}
@@ -173,6 +168,10 @@ func addDeviceDetail(c *gin.Context) {
 		c.String(401, "{\"msg\":\"No permission.\"}")
 		return
 	}
+	if user.Permission == 0 {
+		c.String(401, "{\"msg\":\"No permission.\"}")
+		return
+	}
 	value_tmp_bytes, _ := base64.StdEncoding.DecodeString(value_inkey)
 	/* encrypt_data := xxtea.Encrypt([]byte("29.3"), []byte(user.Password[0:16]))*/
 	/* fmt.Println(encrypt_data) */
@@ -220,7 +219,7 @@ func addDeviceDetail(c *gin.Context) {
 }
 
 func updateDeviceProperty(c *gin.Context) {
-	if !hasLogin(c) {
+	if !hasLogin(c, 2) {
 		c.String(401, "{\"msg\":\"No permission.\"}")
 		return
 	}
@@ -279,14 +278,20 @@ func updateDeviceProperty(c *gin.Context) {
 	c.String(200, "{\"msg\":\"success\"}")
 }
 
-func hasLogin(c *gin.Context) bool {
-	return true
-	session := sessions.Default(c)
-	username := session.Get("username")
-	if username == nil {
+func hasLogin(c *gin.Context, minlevel uint) bool {
+	if len(c.Request.Header["Token"]) == 0 {
 		return false
 	}
+	token := c.Request.Header["Token"][0]
+	if token == "" {
+		return false
+	}
+	payload := strings.Split(token, ",")
 	var user_s User
-	err := Db.First(&user_s, "username=?", username).Error
-	return err == nil
+	if err := Db.First(&user_s, "username=?", payload[0]).Error; err != nil {
+		return false
+	}
+	token_test_src := user_s.Username + user_s.Password
+	token_test := fmt.Sprintf("%x", md5.Sum([]byte(token_test_src)))
+	return token_test == payload[1]
 }
