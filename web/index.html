@@ -27,6 +27,20 @@
                 <li class="nav-item"><a href="#" class="nav-link" v-on:click="logout">Logout</a></li>
             </ul>
         </header>
+        <div class="position-fixed bottom-0 end-0 p-3" style="z-index: 11">
+            <div id="liveToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+                <div class="toast-header">
+                    <strong class="me-auto">{{toast_title}}</strong>
+                    <small>{{toast_subtitle}}</small>
+                </div>
+                <div class="toast-body">
+                    <div class="spinner-border spinner-grow-sm" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                      </div>
+                    {{toast_message}}
+                </div>
+            </div>
+        </div>
         <div class="container mt-2">
             <div class="row" v-if="route=='login'">
                 <div class="col-md-4">
@@ -147,19 +161,29 @@
                                         aria-hidden="true"></i>&nbsp;{{k.name}}</span>
                                 <div style="width: 65px;display: flex;flex-direction: row;justify-content: flex-end;">
                                     <div class="form-check form-switch" v-if="k.unit=='toggle'">
-                                        <input class="form-check-input" type="checkbox" v-model="k.value"
-                                            v-on:change="submitChange(k.name,k.value?1:0)">
+                                        <input v-if="!controller_lock" class="form-check-input" type="checkbox"
+                                            v-model="k.value" v-on:change="submitChange(k.name,k.value?1:0)">
+                                        <input v-if="controller_lock" disabled class="form-check-input" type="checkbox"
+                                            v-model="k.value" v-on:change="submitChange(k.name,k.value?1:0)">
                                     </div>
                                     <div v-if="k.unit.indexOf('range(')>-1">
                                         <div class="input-group">
-                                            <input type="number" class="form-control"
+                                            <input v-if="!controller_lock" type="number" class="form-control"
+                                                v-bind:min="parseInt(k.unit.replace('range(','').replace(')','').split(',')[0])"
+                                                v-bind:max="parseInt(k.unit.replace('range(','').replace(')','').split(',')[1])"
+                                                v-model="k.value" v-on:change="submitChange(k.name,k.value)">
+                                            <input v-if="controller_lock" disabled type="number" class="form-control"
                                                 v-bind:min="parseInt(k.unit.replace('range(','').replace(')','').split(',')[0])"
                                                 v-bind:max="parseInt(k.unit.replace('range(','').replace(')','').split(',')[1])"
                                                 v-model="k.value" v-on:change="submitChange(k.name,k.value)">
                                         </div>
                                     </div>
                                     <div v-if="k.unit=='exec'">
-                                        <button type="button" class="btn btn-outline-info btn-sm" style="width: 65px;"
+                                        <button v-if="!controller_lock" type="button"
+                                            class="btn btn-outline-info btn-sm" style="width: 65px;"
+                                            v-on:click="submitChange(k.name,0)">Exec</button>
+                                        <button v-if="controller_lock" disabled type="button"
+                                            class="btn btn-outline-info btn-sm" style="width: 65px;"
                                             v-on:click="submitChange(k.name,0)">Exec</button>
                                     </div>
                                 </div>
@@ -175,8 +199,10 @@
                                 <span><i class="fa fa-code" aria-hidden="true"></i>&nbsp;{{k.name}}</span>
                                 <div style="width: 65px;display: flex;flex-direction: row;justify-content: flex-end;">
                                     <div class="form-check form-switch" v-if="k.unit=='toggle'">
-                                        <input class="form-check-input" type="checkbox" v-model="k.value"
-                                            v-on:change="submitChange(k.name,k.value?1:0)">
+                                        <input v-if="!controller_lock" class="form-check-input" type="checkbox"
+                                            v-model="k.value" v-on:change="submitChange(k.name,k.value?1:0)">
+                                        <input v-if="controller_lock" disabled class="form-check-input" type="checkbox"
+                                            v-model="k.value" v-on:change="submitChange(k.name,k.value?1:0)">
                                     </div>
                                 </div>
                             </div>
@@ -434,7 +460,7 @@
             return JSON.parse(JSON.stringify(obj));
         }
 
-        let deviceRefreshInt, deviceDetailRefreshInt, downloadInterval = 10;
+        let deviceRefreshInt, deviceDetailRefreshInt, downloadInterval = 10, submitInterval = 3;
 
         function deviceRefresh() {
             ajax("get", "/devices", {}, (e) => {
@@ -480,6 +506,18 @@
             });
         }
 
+        function toast(title, subtitle, message, timeout) {
+            app.toast_title=title;
+            app.toast_subtitle=subtitle;
+            app.toast_message=message;
+            var toaster = document.getElementById('liveToast');
+            let toast = new bootstrap.Toast(toaster)
+            toast.show();
+            window.setTimeout(()=>{
+                toast.hide();
+            },timeout*1000);
+        }
+
         var app = new Vue({
             el: '#app',
             data: {
@@ -492,8 +530,8 @@
                 rememberUser: false,
                 chosenDevice: '',
                 devices: [],
-                deviceDetails: []
-                ,
+                deviceDetails: [],
+                controller_lock: false,
                 manageDeviceName: "", /*In manage mode,it means the new name that the admin changes.*/
                 manageDeviceType: "",
                 manageDeviceIcon: "",
@@ -504,7 +542,10 @@
                 manageNewPropertyName: "",
                 manageNewPropertyIcon: "",
                 manageNewPropertyUnit: "",
-                manageNewPropertySize: ""
+                manageNewPropertySize: "",
+                toast_title:"",
+                toast_subtitle:"",
+                toast_message:""
             },
             methods: {
                 clearPassword: function () {
@@ -534,6 +575,10 @@
                             token = this.username + "," + md5(this.username + this.password);
                             this.route = "home";/*Change Status*/
                             deviceRefresh();
+                            if (window.deviceRefreshInt != 0) {
+                                window.clearInterval(window.deviceRefreshInt);
+                                window.deviceRefreshInt = 0;
+                            }
                             window.deviceRefreshInt = window.setInterval(deviceRefresh, downloadInterval * 1000);
                         }
                         else {
@@ -565,6 +610,10 @@
                     this.chosenDevice = d;
                     this.route = "view";
                     this.deviceDetails = [];
+                    if (window.deviceDetailRefreshInt != 0) {
+                        window.clearInterval(window.deviceDetailRefreshInt);
+                        window.deviceDetailRefreshInt = 0;
+                    }
                     deviceDetailRefresh();
                     window.deviceDetailRefreshInt = window.setInterval(deviceDetailRefresh, downloadInterval * 1000);
                 },
@@ -721,10 +770,14 @@
                 submitChange: function (which, value) {
                     /* TODO:respond to user's action which changes the value of some proverty. */
                     /* device name : this.chosenDevice */
+                    this.controller_lock = true;
+                    toast("Uploading","Just now","Transmitting data",3);
                     ajax("PUT", "/device_details/" + app.chosenDevice, JSON.stringify({ "property": which, "value": JSON.stringify(value) }), (e) => {
                         let msg = JSON.parse(e)["msg"];
                         if (msg == "success") {
-
+                            window.setTimeout(() => {
+                                app.controller_lock = false;
+                            }, submitInterval * 1000);
                         }
                         else {
                             alert(msg);
