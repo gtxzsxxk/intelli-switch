@@ -67,7 +67,7 @@ func getDevice(c *gin.Context) {
 			continue
 		}
 		t_now := time.Now()
-		elapsed := t_now.Sub(property_value.UpdatedAt).Seconds()
+		elapsed := t_now.Sub(property_value.CreatedAt).Seconds()
 		if elapsed > 120 {
 			devices[i].Online = 0
 		} else {
@@ -80,7 +80,6 @@ func getDevice(c *gin.Context) {
 }
 
 func deleteDevice(c *gin.Context) {
-	/* TODO: determine whether the user have the permission level */
 	if !hasLogin(c, 2) {
 		c.String(401, "{\"msg\":\"No permission.\"}")
 		return
@@ -218,12 +217,44 @@ func addDeviceDetail(c *gin.Context) {
 		c.String(200, "{\"msg\":\"success\"}")*/
 }
 
+func updateDeviceDetail(c *gin.Context) {
+	if !hasLogin(c, 1) {
+		c.String(401, "{\"msg\":\"No permission.\"}")
+		return
+	}
+	name := c.Param("name")
+	body_json := make(map[string]string)
+	c.BindJSON(&body_json)
+	property_str := body_json["property"]
+	value_str := body_json["value"]
+	var device Device
+	if err := Db.First(&device, "name=?", name).Error; err != nil {
+		c.String(400, "{\"msg\":\"No such a device.\"}")
+		return
+	}
+	var property Property
+	if err := Db.First(&property, "device_id=? AND name=?", device.ID, property_str).Error; err != nil {
+		c.String(400, "{\"msg\":\"No such a property.\"}")
+		return
+	}
+	var property_value PropertyValue
+	if err := Db.Last(&property_value, "property_id=?", property.ID).Error; err != nil {
+		property_value := PropertyValue{PropertyID: int(property.ID), Value: value_str}
+		if err := Db.Create(&property_value).Error; err != nil {
+			c.String(500, "{\"msg\":\"Server internal error.\"}")
+			return
+		}
+	}
+	property_value.Value = value_str
+	Db.Save(&property_value)
+	c.String(200, "{\"msg\":\"success\"}")
+}
+
 func updateDeviceProperty(c *gin.Context) {
 	if !hasLogin(c, 2) {
 		c.String(401, "{\"msg\":\"No permission.\"}")
 		return
 	}
-	/* TODO: delete all properties and remake them.*/
 	name := c.Param("name")
 	var device Device
 	if err := Db.First(&device, "name=?", name).Error; err != nil {

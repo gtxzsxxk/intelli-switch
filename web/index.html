@@ -148,14 +148,14 @@
                                 <div style="width: 65px;display: flex;flex-direction: row;justify-content: flex-end;">
                                     <div class="form-check form-switch" v-if="k.unit=='toggle'">
                                         <input class="form-check-input" type="checkbox" v-model="k.value"
-                                            v-on:change="submitChange(k.name,eval(k.value)?1:0)">
+                                            v-on:change="submitChange(k.name,k.value?1:0)">
                                     </div>
                                     <div v-if="k.unit.indexOf('range(')>-1">
                                         <div class="input-group">
                                             <input type="number" class="form-control"
                                                 v-bind:min="parseInt(k.unit.replace('range(','').replace(')','').split(',')[0])"
                                                 v-bind:max="parseInt(k.unit.replace('range(','').replace(')','').split(',')[1])"
-                                                v-model="k.value" v-on:change="submitChange(k.name,eval(k.value))">
+                                                v-model="k.value" v-on:change="submitChange(k.name,k.value)">
                                         </div>
                                     </div>
                                     <div v-if="k.unit=='exec'">
@@ -176,7 +176,7 @@
                                 <div style="width: 65px;display: flex;flex-direction: row;justify-content: flex-end;">
                                     <div class="form-check form-switch" v-if="k.unit=='toggle'">
                                         <input class="form-check-input" type="checkbox" v-model="k.value"
-                                            v-on:change="submitChange(k.name,eval(k.value)?1:0)">
+                                            v-on:change="submitChange(k.name,k.value?1:0)">
                                     </div>
                                 </div>
                             </div>
@@ -410,16 +410,16 @@
                     map.fitBounds(polyline.getBounds());
                 }
             }
-        }   
+        }
 
-        var token="";
+        var token = "";
 
         function ajax(method, url, data, callback) {
             var httpRequest = new XMLHttpRequest();
-            httpRequest.withCredentials=true;
+            httpRequest.withCredentials = true;
             httpRequest.open(method, url, true);
-            if(token!=""){
-                httpRequest.setRequestHeader("token",token);
+            if (token != "") {
+                httpRequest.setRequestHeader("token", token);
             }
             httpRequest.send(data);
             httpRequest.onreadystatechange = function () {
@@ -488,7 +488,7 @@
                 manage_subroute: "main",/*main edit*/
                 username: "",
                 password: "",
-                permission:0,
+                permission: 0,
                 rememberUser: false,
                 chosenDevice: '',
                 devices: [],
@@ -523,7 +523,7 @@
                     ajax("get", "/login/" + this.username + "/" + this.password, {}, (e) => {
                         let msg = JSON.parse(e)["msg"]
                         if (msg == "success") {
-                            this.permission=JSON.parse(e)["permission"];
+                            this.permission = JSON.parse(e)["permission"];
                             if (this.rememberUser) {
                                 window.localStorage.setItem("username", this.username);
                                 window.localStorage.setItem("password", this.password);
@@ -531,13 +531,10 @@
                             else {
                                 this.clearPassword();
                             }
-                            token=this.username+","+md5(this.username+this.password);
+                            token = this.username + "," + md5(this.username + this.password);
                             this.route = "home";/*Change Status*/
                             deviceRefresh();
                             window.deviceRefreshInt = window.setInterval(deviceRefresh, downloadInterval * 1000);
-                            /* TODO:Frequently Download Information from the server */
-                            /* TODO:If we confirm that the user is inspecting a device,frequently update the data. */
-                            /* TODO:Implement the add device function */
                         }
                         else {
                             this.clearPassword();
@@ -563,13 +560,11 @@
                     else if (this.route == "home") {
                         this.chosenDevice = "";
                     }
-                    /* TODO: think how to determine we need to update the information */
                 },
                 viewDevice: function (d) {
                     this.chosenDevice = d;
                     this.route = "view";
                     this.deviceDetails = [];
-                    /* TODO: update information from the server */
                     deviceDetailRefresh();
                     window.deviceDetailRefreshInt = window.setInterval(deviceDetailRefresh, downloadInterval * 1000);
                 },
@@ -648,7 +643,6 @@
                     this.$forceUpdate();
                 },
                 managePropertyDelete: function (name) {
-                    /* TODO:JUST DELETE THE PROPERTY */
                     if (!confirm("Are you sure to delete Property '" + name + "' ?")) {
                         return;
                     }
@@ -673,12 +667,11 @@
                     this.deviceDetails = jsonClone(this.newDeviceDetails);
                     if (this.manage_add_mode) {
                         ajax("POST", "/devices/" + app.manageDeviceName + "/" + app.manageDeviceType + "/" + app.manageDeviceIcon, JSON.stringify({ "properties": JSON.stringify(this.deviceDetails) }), (e) => {
-                            let msg=JSON.parse(e)["msg"];
-                            if(msg=="success")
-                            {
+                            let msg = JSON.parse(e)["msg"];
+                            if (msg == "success") {
                                 this.manage_subroute = "main";
                             }
-                            else{
+                            else {
                                 this.manage_subroute = "main";
                                 this.changeRoute("view");
                                 alert(msg);
@@ -686,12 +679,11 @@
                         });
                     } else {
                         ajax("PUT", "/device_property/" + app.manageDeviceName, JSON.stringify({ "properties": JSON.stringify(this.deviceDetails) }), (e) => {
-                            let msg=JSON.parse(e)["msg"];
-                            if(msg=="success")
-                            {
+                            let msg = JSON.parse(e)["msg"];
+                            if (msg == "success") {
                                 this.manage_subroute = "main";
                             }
-                            else{
+                            else {
                                 this.manage_subroute = "main";
                                 this.changeRoute("view");
                                 alert(msg);
@@ -725,12 +717,19 @@
                             alert("Failed to delete device " + this.chosenDevice);
                         }
                     });
-                    /* TODO:Directly reload device list from the server */
                 },
                 submitChange: function (which, value) {
                     /* TODO:respond to user's action which changes the value of some proverty. */
                     /* device name : this.chosenDevice */
-                    alert(this.chosenDevice + "'s" + which + " will be turned to " + value);
+                    ajax("PUT", "/device_details/" + app.chosenDevice, JSON.stringify({ "property": which, "value": JSON.stringify(value) }), (e) => {
+                        let msg = JSON.parse(e)["msg"];
+                        if (msg == "success") {
+
+                        }
+                        else {
+                            alert(msg);
+                        }
+                    });
                 }
             },
             mounted: function () {
