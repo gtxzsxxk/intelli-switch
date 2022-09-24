@@ -26,5 +26,5 @@ func main() {
 	/* For Web Page to update single latest property's value */
 	r.PUT("/device_details/:name", updateDeviceDetail)
 
-	r.Run() // 监听并在 0.0.0.0:8080 上启动服务
+	r.Run("localhost:9080") // 监听并在 0.0.0.0:8080 上启动服务
 }

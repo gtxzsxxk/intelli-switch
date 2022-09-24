@@ -43,9 +43,9 @@
         </div>
         <div class="container mt-2">
             <div class="row" v-if="route=='login'">
-                <div class="col-md-4">
+                <div class="col-lg-4">
                 </div>
-                <div class="col-md-4">
+                <div class="col-lg-4">
                     <h3 style="text-align:center">Intelli-Sw</h3>
                     <div class="intelli-card">
                         <div class="mb-3 mt-3">
@@ -66,13 +66,13 @@
                     </div>
 
                 </div>
-                <div class="col-md-4">
+                <div class="col-lg-4">
                 </div>
             </div>
             <div class="row" v-if="route=='home'">
-                <div class="col-md-4">
+                <div class="col-lg-4">
                 </div>
-                <div class="col-md-4">
+                <div class="col-lg-4">
                     <h4 style="text-align:center">Available Devices</h4>
                     <div class="list-group">
                         <a v-for="item in devices" href="#"
@@ -90,7 +90,7 @@
                         </a>
                     </div>
                 </div>
-                <div class="col-md-4">
+                <div class="col-lg-4">
                 </div>
             </div>
             <div class="row" v-if="route=='view'" style="display:flex;justify-content:center;">
@@ -768,7 +768,6 @@
                     });
                 },
                 submitChange: function (which, value) {
-                    /* TODO:respond to user's action which changes the value of some proverty. */
                     /* device name : this.chosenDevice */
                     this.controller_lock = true;
                     toast("Uploading","Just now","Transmitting data",3);
