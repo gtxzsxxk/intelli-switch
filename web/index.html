@@ -138,16 +138,16 @@
 
                         <div v-bind:class="['info-card',k.size=='single'?'info-card-small':'info-card-big']"
                             v-for="k in deviceDetails" v-if="k.type=='display'" v-bind:key="k.name">
-                            <div style="display:flex;flex-direction:column;justify-content:center;font-size: 3em;">
+                            <div style="display:flex;flex-direction:column;justify-content:center;font-size: 2.5em;margin-left:5px;">
                                 <i v-bind:class="['fa',k.icon]" aria-hidden="true"></i>
                                 <small style="font-size: .50em;text-align: center;">{{k.unit}}</small>
                             </div>
                             <div style="text-align:center ;">
                                 <span>{{k.name}}</span>
                                 <hr>
-                                <h3>
+                                <h4>
                                     {{k.value}}
-                                </h3>
+                                </h4>
                             </div>
                         </div>
                         <div v-bind:class="['control-card',k.size=='single'?'info-card-small':'info-card-big']"
