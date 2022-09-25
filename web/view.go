@@ -132,6 +132,9 @@ func getDeviceDetail(c *gin.Context) {
 			}
 			tmp_byt, _ := json.Marshal(tmp_values)
 			tmp_value_result := strings.ReplaceAll(string(tmp_byt), "\"", "")
+			tmp_value_result = strings.ReplaceAll(tmp_value_result, "\\", "")
+			tmp_value_result = strings.ReplaceAll(tmp_value_result, ",[[", ",[")
+			tmp_value_result = strings.ReplaceAll(tmp_value_result, "]]]", "]]")
 			tmp_dd.Value = tmp_value_result
 		} else if v.Type == "chart" {
 
@@ -294,6 +297,16 @@ func updateDeviceProperty(c *gin.Context) {
 			if o_p.Name == p_name {
 				o_p_id := o_p.ID
 				Db.Model(&PropertyValue{}).Where("property_id=?", o_p_id).Update("property_id", new_property.ID)
+				pv := PropertyValue{}
+				if err := Db.Last(&pv, "property_id=?", new_property.ID).Error; err != nil {
+					pv := PropertyValue{
+						Value:      v.Value,
+						PropertyID: (int)(new_property.ID),
+					}
+					Db.Save(&pv)
+				} else {
+					Db.Model(&pv).Update("value", v.Value)
+				}
 				/*var old_property_values []PropertyValue
 				Db.Where("property_id=?",o_p_id).Find(&old_property_values)
 				for _,old_value:=range old_property_values {

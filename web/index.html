@@ -318,6 +318,11 @@
                                             <input type="text" class="form-control" placeholder="'single' or empty"
                                                 v-model="item.size">
                                         </div>
+                                        <div class="mb-3">
+                                            <label class="form-label">Value:</label>
+                                            <input type="text" class="form-control" placeholder="Value"
+                                                v-model="item.value">
+                                        </div>
                                         <div class="btn-group" role="group" aria-label="Basic outlined">
                                             <button type="button" class="btn btn-outline-primary"
                                                 v-on:click="managePropertyMove(item.name,'up')">Up</button>
@@ -357,6 +362,11 @@
                                 <label class="form-label">Size:</label>
                                 <input type="text" class="form-control" placeholder="'single' or empty"
                                     v-model="manageNewPropertySize">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Value:</label>
+                                <input type="text" class="form-control" placeholder="Value"
+                                    v-model="manageNewPropertyValue">
                             </div>
                             <div class="btn-group" role="group" aria-label="Basic outlined">
                                 <button type="button" class="btn btn-outline-primary"
@@ -414,7 +424,7 @@
             let cnt = app.deviceDetails.length;
             for (let i = 0; i < cnt; i++) {
                 if (app.deviceDetails[i].type == 'map') {
-                    let valueObj = eval(app.deviceDetails[i].value);
+                    let valueObj = app.deviceDetails[i].value;
                     //console.log(valueObj);
                     let len = valueObj.length;
                     var container = L.DomUtil.get(app.deviceDetails[i].name + '_map');
@@ -517,7 +527,7 @@
                 toast.hide();
             },timeout*1000);
         }
-
+        /* TODO: 在管理设备时，允许用户设置初始值；增加安卓下载数据接口。*/
         var app = new Vue({
             el: '#app',
             data: {
@@ -543,6 +553,7 @@
                 manageNewPropertyIcon: "",
                 manageNewPropertyUnit: "",
                 manageNewPropertySize: "",
+                manageNewPropertyValue: "",
                 toast_title:"",
                 toast_subtitle:"",
                 toast_message:""
@@ -661,7 +672,7 @@
                         type: this.manageNewPropertyType,
                         name: this.manageNewPropertyName,
                         icon: this.manageNewPropertyIcon,
-                        value: "0",
+                        value: this.manageNewPropertyValue,
                         unit: this.manageNewPropertyUnit,
                         size: this.manageNewPropertySize
                     }
@@ -714,8 +725,11 @@
                         return;
                     }
                     this.deviceDetails = jsonClone(this.newDeviceDetails);
+                    for(let i=0;i<this.newDeviceDetails.length;i++){
+                        this.newDeviceDetails[i].value=JSON.stringify(this.newDeviceDetails[i].value);
+                    }
                     if (this.manage_add_mode) {
-                        ajax("POST", "/devices/" + app.manageDeviceName + "/" + app.manageDeviceType + "/" + app.manageDeviceIcon, JSON.stringify({ "properties": JSON.stringify(this.deviceDetails) }), (e) => {
+                        ajax("POST", "/devices/" + app.manageDeviceName + "/" + app.manageDeviceType + "/" + app.manageDeviceIcon, JSON.stringify({ "properties": JSON.stringify(this.newDeviceDetails) }), (e) => {
                             let msg = JSON.parse(e)["msg"];
                             if (msg == "success") {
                                 this.manage_subroute = "main";
@@ -727,7 +741,7 @@
                             }
                         });
                     } else {
-                        ajax("PUT", "/device_property/" + app.manageDeviceName, JSON.stringify({ "properties": JSON.stringify(this.deviceDetails) }), (e) => {
+                        ajax("PUT", "/device_property/" + app.manageDeviceName, JSON.stringify({ "properties": JSON.stringify(this.newDeviceDetails) }), (e) => {
                             let msg = JSON.parse(e)["msg"];
                             if (msg == "success") {
                                 this.manage_subroute = "main";
