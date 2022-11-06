@@ -305,7 +305,7 @@
                                         </div>
                                         <div class="mb-3">
                                             <label class="form-label">Icon:</label>
-                                            <input type="text" class="form-control" placeholder="Icon in font-awesome-4"
+                                            <input type="text" class="form-control" placeholder="Font-awesome-4 or Chart's Type"
                                                 v-model="item.icon">
                                         </div>
                                         <div class="mb-3">
@@ -350,7 +350,7 @@
                             </div>
                             <div class="mb-3">
                                 <label class="form-label">Icon:</label>
-                                <input type="text" class="form-control" placeholder="Icon in font-awesome-4"
+                                <input type="text" class="form-control" placeholder="Font-awesome-4 or Chart's Type"
                                     v-model="manageNewPropertyIcon">
                             </div>
                             <div class="mb-3">
@@ -399,22 +399,30 @@
                     // 绘制图表
                     myChart.setOption({
                         title: {
-                            text: app.deviceDetails[i].name
+                            text: app.deviceDetails[i].name.replace("@","")
                         },
                         tooltip: {},
                         xAxis: {
-                            data: app.deviceDetails[i].value.xAxis
+                            data: app.deviceDetails[i].value.xaxis,
+                            boundaryGap:true
+                            //data: [1,2,3,4,5]
                         },
-                        yAxis: {},
+                        yAxis: {
+                            scale:true
+                        },
                         series: [
                             {
                                 name: app.deviceDetails[i].unit,
                                 type: app.deviceDetails[i].value.type,
-                                data: app.deviceDetails[i].value.yAxis
+                                data: app.deviceDetails[i].value.yaxis,
+                                smooth:true
+                                //type: "line",
+                                //data: [5,4,3,2,1]
                             }
                         ],
                         grid: {
-                            left: '15%'
+                            left: '15%',
+                            containLabel: true
                         }
                     });
                 }
@@ -494,7 +502,7 @@
                 }
                 else {
                     for (let i = 0; i < jsonObj.length; i++) {
-                        jsonObj[i].value = eval(jsonObj[i].value.toLowerCase());
+                        jsonObj[i].value = JSON.parse(jsonObj[i].value.toLowerCase());
                     }
                     app.deviceDetails = jsonObj;
                 }

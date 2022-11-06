@@ -137,7 +137,40 @@ func getDeviceDetail(c *gin.Context) {
 			tmp_value_result = strings.ReplaceAll(tmp_value_result, "]]]", "]]")
 			tmp_dd.Value = tmp_value_result
 		} else if v.Type == "chart" {
-
+			if !strings.Contains(v.Name, "@") {
+				c.String(501, "{\"msg\":\"Bad settings of properties.\"}")
+				return
+			}
+			type ChartResult struct {
+				XAXIS []string `json:"xAxis"`
+				Type  string   `json:"type"`
+				YAXIS []string `json:"yAxis"`
+			}
+			var corresponding_property Property
+			Db.Last(&corresponding_property, "name=? AND device_id=?", strings.ReplaceAll(v.Name, "@", ""), device.ID)
+			var tmp_d_value PropertyValue
+			Db.Last(&tmp_d_value, "property_id=?", corresponding_property.ID)
+			tm_of_the_day := tmp_d_value.UpdatedAt
+			tm_of_the_day_begin := time.Date(tm_of_the_day.Year(), tm_of_the_day.Month(), tm_of_the_day.Day(), 0, 0, 0, 0, tm_of_the_day.Location())
+			tm_of_the_day_end := time.Date(tm_of_the_day.Year(), tm_of_the_day.Month(), tm_of_the_day.Day(), 23, 59, 59, 0, tm_of_the_day.Location())
+			var results []PropertyValue
+			err := Db.Where("property_id=? AND updated_at BETWEEN ? AND ?", corresponding_property.ID, tm_of_the_day_begin, tm_of_the_day_end).Find(&results).Error
+			if err != nil {
+				tmp_dd.Value = "[[0,0]]"
+			}
+			var xaxis_arr []string
+			var yaxis_arr []string
+			for _, v := range results {
+				xaxis_arr = append(xaxis_arr, fmt.Sprintf("%02d:%02d", v.UpdatedAt.Hour(), v.UpdatedAt.Minute()))
+				yaxis_arr = append(yaxis_arr, v.Value)
+			}
+			cr := ChartResult{
+				XAXIS: xaxis_arr,
+				YAXIS: yaxis_arr,
+				Type:  v.Icon,
+			}
+			value_byt, _ := json.Marshal(cr)
+			tmp_dd.Value = string(value_byt)
 		} else {
 			tmp_dd.Value = tmp_d_value.Value
 		}
@@ -337,5 +370,8 @@ func hasLogin(c *gin.Context, minlevel uint) bool {
 	}
 	token_test_src := user_s.Username + user_s.Password
 	token_test := fmt.Sprintf("%x", md5.Sum([]byte(token_test_src)))
+	if user_s.Permission < minlevel {
+		return false
+	}
 	return token_test == payload[1]
 }
