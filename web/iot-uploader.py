@@ -16,12 +16,12 @@ def SendMail(title:str,message:str):
     # 第三方 SMTP 服务
     #Thanks to runoob
     mail_host="smtp.qq.com"  #设置服务器
-    mail_user="2524395907@qq.com"    #用户名
-    mail_pass="ktzlliytwsgmdiaj"   #口令 
+    mail_user="@qq.com"    #用户名
+    mail_pass=""   #口令 
     
     
-    sender = '2524395907@qq.com'
-    receivers = ['2524395907@qq.com']  # 接收邮件，可设置为你的QQ邮箱或者其他邮箱
+    sender = '@qq.com'
+    receivers = ['@qq.com']  # 接收邮件，可设置为你的QQ邮箱或者其他邮箱
 
     htmlfile=open('mail.html','r',encoding='utf-8')
     htmldata=htmlfile.read()
